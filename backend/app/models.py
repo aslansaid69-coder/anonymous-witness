@@ -1,3 +1,5 @@
+"""School Edition: school-scoped cases, staff-only sessions, no student identity."""
+
 from datetime import datetime, timezone
 from uuid import uuid4
 from sqlalchemy import (
@@ -5,11 +7,10 @@ from sqlalchemy import (
     Text,
     ForeignKey,
     DateTime,
-    Date,
-    Time,
     Integer,
+    Boolean,
     CheckConstraint,
-    LargeBinary,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 from .db import Base
@@ -23,150 +24,152 @@ def uid():
     return str(uuid4())
 
 
-STATUSES = (
-    "Submitted",
-    "Under Review",
-    "Additional Information Requested",
-    "In Progress",
-    "Resolved",
-    "Rejected",
-)
-CATEGORIES = (
-    "Theft",
-    "Fraud",
-    "Violence",
-    "Corruption",
-    "Cybercrime",
-    "Drug-related activity",
-    "Suspicious activity",
-    "Other",
-)
-
-
-class User(Base):
-    __tablename__ = "users"
+class School(Base):
+    __tablename__ = "schools"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    name: Mapped[str] = mapped_column(String(160))
+    number: Mapped[str] = mapped_column(String(30))
+    district: Mapped[str] = mapped_column(String(100), default="")
+    active: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+
+
+class Officer(Base):
+    __tablename__ = "officers"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    name: Mapped[str] = mapped_column(String(160))
     username: Mapped[str] = mapped_column(String(80), unique=True)
     password_hash: Mapped[str] = mapped_column(Text)
-    role: Mapped[str] = mapped_column(String(20))
+    role: Mapped[str] = mapped_column(String(12), default="officer")
+    must_change_password: Mapped[bool] = mapped_column(Boolean, default=True)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    totp_secret: Mapped[str | None] = mapped_column(Text, nullable=True)
+    last_totp_step: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
-    __table_args__ = (CheckConstraint("role IN ('officer','admin')"),)
+    __table_args__ = (CheckConstraint("role IN ('owner','officer')"),)
 
 
-class Report(Base):
-    __tablename__ = "reports"
+class OfficerSchool(Base):
+    __tablename__ = "officer_schools"
+    officer_id: Mapped[str] = mapped_column(
+        ForeignKey("officers.id", ondelete="CASCADE"), primary_key=True
+    )
+    school_id: Mapped[str] = mapped_column(ForeignKey("schools.id"), primary_key=True)
+
+
+class Case(Base):
+    __tablename__ = "cases"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
-    report_number: Mapped[str] = mapped_column(String(40), unique=True)
-    category: Mapped[str] = mapped_column(String(50), index=True)
-    encrypted_description: Mapped[str] = mapped_column(Text)
-    encrypted_location: Mapped[str] = mapped_column(Text)
-    incident_date: Mapped[datetime] = mapped_column(Date, index=True)
-    incident_time: Mapped[datetime] = mapped_column(Time)
-    status: Mapped[str] = mapped_column(String(60), default="Submitted", index=True)
-    access_token_hash: Mapped[str] = mapped_column(String(64))
+    school_id: Mapped[str] = mapped_column(ForeignKey("schools.id"), index=True)
+    case_code_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    role: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="New", index=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=now, index=True
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=now, onupdate=now
     )
-    __table_args__ = (
-        CheckConstraint(
-            "status IN ('Submitted','Under Review','Additional Information Requested','In Progress','Resolved','Rejected')"
-        ),
-        CheckConstraint(
-            "category IN ('Theft','Fraud','Violence','Corruption','Cybercrime','Drug-related activity','Suspicious activity','Other')"
-        ),
+    closed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
     )
-
-
-class Evidence(Base):
-    __tablename__ = "evidence"
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
-    report_id: Mapped[str] = mapped_column(ForeignKey("reports.id"), index=True)
-    original_filename: Mapped[str] = mapped_column(Text)
-    stored_filename: Mapped[str] = mapped_column(String(80), unique=True)
-    mime_type: Mapped[str] = mapped_column(String(80))
-    file_size: Mapped[int] = mapped_column(Integer)
-    file_hash: Mapped[str] = mapped_column(String(64))
-    encrypted_content: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    unanswered: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    __table_args__ = (
+        CheckConstraint("status IN ('New','In progress','Closed')"),
+        CheckConstraint("role IS NULL OR role IN ('victim','witness')"),
+    )
 
 
 class Message(Base):
     __tablename__ = "messages"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
-    report_id: Mapped[str] = mapped_column(ForeignKey("reports.id"), index=True)
-    sender_type: Mapped[str] = mapped_column(String(20))
-    encrypted_message: Mapped[str] = mapped_column(Text)
+    case_id: Mapped[str] = mapped_column(
+        ForeignKey("cases.id", ondelete="CASCADE"), index=True
+    )
+    sender: Mapped[str] = mapped_column(String(10))
+    body: Mapped[str] = mapped_column(Text)
+    attachment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    mime_type: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    attachment_size: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    attachment_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
-    read_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    __table_args__ = (
-        CheckConstraint("sender_type IN ('citizen','officer','internal')"),
-    )
+    __table_args__ = (CheckConstraint("sender IN ('student','officer')"),)
 
 
-class StatusHistory(Base):
-    __tablename__ = "status_history"
+class Note(Base):
+    __tablename__ = "notes"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
-    report_id: Mapped[str] = mapped_column(ForeignKey("reports.id"), index=True)
-    old_status: Mapped[str | None] = mapped_column(String(60), nullable=True)
-    new_status: Mapped[str] = mapped_column(String(60))
-    changed_by: Mapped[str | None] = mapped_column(
-        ForeignKey("users.id"), nullable=True
+    case_id: Mapped[str] = mapped_column(
+        ForeignKey("cases.id", ondelete="CASCADE"), index=True
     )
+    officer_id: Mapped[str | None] = mapped_column(
+        ForeignKey("officers.id", ondelete="SET NULL"), nullable=True
+    )
+    body: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
 class AuditLog(Base):
-    __tablename__ = "audit_logs"
+    __tablename__ = "audit_log"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
-    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
-    action: Mapped[str] = mapped_column(String(80))
-    report_id: Mapped[str | None] = mapped_column(
-        ForeignKey("reports.id"), nullable=True
-    )
-    timestamp: Mapped[datetime] = mapped_column(
+    actor: Mapped[str] = mapped_column(String(80))
+    action: Mapped[str] = mapped_column(String(60))
+    target: Mapped[str] = mapped_column(String(80), default="")
+    created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=now, index=True
     )
 
 
-class Session(Base):
-    __tablename__ = "sessions"
+class StaffSession(Base):
+    __tablename__ = "staff_sessions"
     id_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
-    user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
-    report_id: Mapped[str | None] = mapped_column(
-        ForeignKey("reports.id"), nullable=True
+    officer_id: Mapped[str] = mapped_column(
+        ForeignKey("officers.id", ondelete="CASCADE"), index=True
     )
     csrf_hash: Mapped[str] = mapped_column(String(64))
+    pending_totp: Mapped[str | None] = mapped_column(Text, nullable=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
-    __table_args__ = (CheckConstraint("(user_id IS NULL) != (report_id IS NULL)"),)
 
 
-class RateBucket(Base):
-    __tablename__ = "rate_buckets"
+class RateLimit(Base):
+    __tablename__ = "rate_limits"
     key: Mapped[str] = mapped_column(String(64), primary_key=True)
     count: Mapped[int] = mapped_column(Integer)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
 
 
-class SubmissionUpload(Base):
-    __tablename__ = "submission_uploads"
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
-    token_hash: Mapped[str] = mapped_column(String(64))
-    content_type: Mapped[str] = mapped_column(String(200))
-    total_bytes: Mapped[int] = mapped_column(Integer)
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
-    __table_args__ = (CheckConstraint("total_bytes > 0 AND total_bytes <= 54525952"),)
-
-
-class SubmissionChunk(Base):
-    __tablename__ = "submission_chunks"
-    upload_id: Mapped[str] = mapped_column(
-        ForeignKey("submission_uploads.id", ondelete="CASCADE"), primary_key=True
+class SchoolSettings(Base):
+    __tablename__ = "school_settings"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    retention_days: Mapped[int] = mapped_column(Integer, default=30)
+    __table_args__ = (
+        CheckConstraint("retention_days >= 1 AND retention_days <= 3650"),
     )
-    position: Mapped[int] = mapped_column(Integer, primary_key=True)
-    encrypted_content: Mapped[bytes] = mapped_column(LargeBinary)
-    __table_args__ = (CheckConstraint("position >= 0 AND position < 104"),)
+
+
+class PushSubscription(Base):
+    __tablename__ = "push_subscriptions"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    officer_id: Mapped[str] = mapped_column(
+        ForeignKey("officers.id", ondelete="CASCADE"), index=True
+    )
+    endpoint_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    encrypted_subscription: Mapped[str] = mapped_column(Text)
+
+
+class Notification(Base):
+    __tablename__ = "notifications"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    school_id: Mapped[str] = mapped_column(ForeignKey("schools.id"))
+    officer_id: Mapped[str] = mapped_column(
+        ForeignKey("officers.id", ondelete="CASCADE"), index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    delivered_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class BlobDeletion(Base):
+    __tablename__ = "blob_deletions"
+    pathname: Mapped[str] = mapped_column(Text, primary_key=True)

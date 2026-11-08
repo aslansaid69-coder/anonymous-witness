@@ -1,90 +1,49 @@
-# Anonymous Witness
+# Anonymous Witness — School Edition
 
-**Created by Aslan Saidakhmet, Davlatbek, Dinmukhamed**
+Anonymous school support with separate student, assigned-officer and owner areas.
+English, Russian and Kazakh; responsive layout, dark mode and a discreet installable PWA.
 
-An independent university demonstration for Kazakhstan. React + TypeScript + Tailwind + React Router, FastAPI, PostgreSQL, SQLAlchemy, Alembic, AES-256-GCM, and Argon2id. All displayed sample incidents are fictional. This app does not contact police, government infrastructure, analytics services, or external identity providers.
+- **Students:** choose an active partner school, write a message and optionally attach a cleaned JPG/PNG/PDF. No account, name, email, phone or city. A random 80-bit Case Code is the only way back to the conversation; only its HMAC is stored.
+- **Officers:** owner-created accounts, forced first-login password change, optional TOTP, school-scoped cases, anonymous replies, status changes and private notes. Push notifications contain only the school name.
+- **Owner:** `/owner` with independent authentication. Manage schools, officer assignments, passwords, deactivation/deletion and retention. The owner API returns statistics, never message contents or notes.
 
-## Vercel and Neon hosting
+Created by Aslan Saidakhmet, Davlatbek, Dinmukhamed.
 
-The application is live at **https://anonymous-witness.vercel.app** with its PostgreSQL database hosted on Neon. The existing 8 reports, messages, status history, audit log and encrypted evidence were transferred and verified. A fictional cloud verification report was added during end-to-end testing. The cloud API stores evidence encrypted in PostgreSQL and transfers large files in bounded chunks. See [DEPLOYMENT.md](DEPLOYMENT.md) for deployment details. Cloud credentials are in the local ignored `CLOUD-ДОСТУПЫ.txt`, not in this repository.
+## Stack and hosting
 
-## Prepared demonstration on this Mac
+React/TypeScript/Vite/Tailwind, FastAPI/Python 3.12, SQLAlchemy/Alembic, hosted PostgreSQL on Neon, and **private Vercel Blob**. Messages, notes, TOTP/push secrets and attachment bytes use AES-256-GCM. Passwords use Argon2id. No SQLite or local evidence storage is used by the deployed app.
 
-The project has now been built and verified with Docker and PostgreSQL. For the prepared local environment, open Docker Desktop and then double-click `ЗАПУСТИТЬ ПРОЕКТ.command`. No terminal commands or dependency downloads are needed for the normal demonstration launch. The launch script opens http://localhost:8080 after the API is ready. Services are left running with restart policies.
+The student API has **no student sessions or cookies**: the Case Code is sent in a header on each request and held only in React memory. Refreshing requires re-entry. Only language/theme preferences use browser storage. Student requests omit cookies even when staff have signed in in the same browser.
 
-Russian instructions: `ЗАВТРА — ПОРЯДОК ПОКАЗА.md`. Presentation script for three speakers: `ТЕКСТ ВЫСТУПЛЕНИЯ.md` or `ТЕКСТ ДЛЯ ЧТЕНИЯ.txt`. Local demonstration credentials are in `ДОСТУПЫ.txt`; that file and `.env` are excluded from the distributable archive. The prepared Docker images, volumes and local credentials belong to this Mac and are not transferred by the source ZIP.
+The application never records student IP addresses, user-agent identifiers or fingerprints. Spam protection uses an expiring, one-use signed proof-of-work challenge and honeypot, plus school/case/account rate counters. No third-party CAPTCHA or analytics is loaded. Expired counters are cleared on requests and by scheduled cleanup. Infrastructure providers can still process network metadata; this is explained on the public privacy page.
 
-## Run locally
+## Deploy step by step
 
-Install Docker Desktop (with its daemon running), Docker Compose v2, and Python 3.10+ for the one-time secret generator.
+1. Push this repository to GitHub, then import it into Vercel. Keep the repository root as the project root; `vercel.json` builds the frontend and Python API. Connect the Vercel GitHub App to this repository and use `main` as the production branch.
+2. Attach a Neon PostgreSQL database. Use its pooled URL as `DATABASE_URL` for the app and its **direct** URL for migrations. Attach a **private** Vercel Blob store; the SDK uses the linked store's `BLOB_STORE_ID` and platform OIDC token. For execution outside Vercel, supply a read-write token through the environment.
+3. Create unique encryption, token-pepper, cron and VAPID keys. Add all variables from `.env.example` to Vercel, including `OWNER_USERNAME` and a unique `OWNER_PASSWORD` of at least 16 characters. Never commit real values or prefix server secrets with `VITE_`.
+4. In a Python 3.12 virtual environment, install `backend/requirements.txt`. With the **direct** database URL and the same environment keys, run:
 
-From this directory:
+   ```sh
+   cd backend
+   alembic upgrade head
+   python -m app.seed
+   ```
 
-```sh
-python3 setup.py
-docker compose up --build -d
-docker compose exec api python -m app.seed
-```
+   **Migration 003 intentionally deletes the legacy crime-reporting schema and all its demo accounts/submissions.** It then creates the School Edition schema. It is irreversible; do not run it against an unrelated database. Test migrations in an isolated environment before production.
 
-Open **http://localhost:8080**. Use `localhost`, rather than `127.0.0.1`, because the configured request origin is checked exactly. Initial builds download dependencies and PostgreSQL. The API waits for the database and applies migrations before serving. Seed is explicit and idempotent: it adds two demonstration accounts and six fictional reports only when no reports exist.
+5. Deploy through the connected `main` branch (or `vercel deploy --prod` from the correctly linked directory). The seed creates exactly one owner, requires a password change on first sign-in, and refuses to overwrite an existing owner. It creates **no demo schools, officers or cases**.
+6. Open `/owner`, sign in, change the temporary password, and sign in again. Optionally enable TOTP. Add real partner schools, create officers, assign them, then activate schools. Hand generated temporary passwords to officers securely. They must change them before viewing cases.
+7. Officers can enable browser push notifications after signing in. Grant notification permission on a supported browser. On iOS, install the PWA on the home screen first. Keep the VAPID private key stable; replacing it invalidates existing subscriptions.
+8. Verify a real workflow with a controlled test school, then remove test cases/accounts before introducing the site. Do not submit real incidents as test data.
 
-| Demonstration account | Role | Password |
-| --- | --- | --- |
-| `demo.admin` | Administrator | `DEMO_PASSWORD` in your generated `.env` |
-| `demo.officer` | Officer | `DEMO_PASSWORD` in your generated `.env` |
+The daily Vercel cron (`03:15 UTC`) calls `/api/cron/maintenance` with `CRON_SECRET`. It deletes closed cases after the owner-selected retention (default 30 days), messages/notes and encrypted blobs, clears expired counters/sessions and retries pending push notifications. Failed blob deletions stay in a retry queue. Cleanup is daily, so removal may occur up to one day after the configured threshold.
 
-Passwords and encryption keys are generated uniquely on your computer. There is no shared default credential. Seeded reports have random unrecoverable citizen tokens; create a new report to demonstrate the citizen inbox. The generated `.env` is private and ignored by Git. Back it up securely together with database and evidence backups: losing the encryption key destroys access to encrypted content, and changing the token pepper invalidates tokens and sessions. `setup.py` refuses to overwrite an existing file.
+## Attachments
 
-To stop without deleting data:
+One optional file per message; maximum **3 MiB**. Photos are decoded, oriented and re-encoded into new compressed JPEGs, without EXIF/GPS, original filenames or original metadata. PDFs up to 12 pages are rasterized and rebuilt into new image-only PDFs, removing original metadata, embedded objects, scripts and annotations. Visible names/faces/written information are not automatically redacted. Only encrypted sanitized bytes enter the private Blob store. File access is checked against the case and current school assignment before server-side decryption.
 
-```sh
-docker compose down
-```
-
-PostgreSQL and encrypted evidence persist in named Docker volumes. Only the web service is exposed, bound to loopback. The database and API are private to the Compose network. Do not run the test suite against your application database: the test fixture drops and recreates tables.
-
-## Demonstration walkthrough
-
-1. Select English, Қазақша, or Русский. Only the language preference is saved in local storage.
-2. Submit a fictional report with a category, description (20–10,000 characters), approximate date/time, location, and optionally evidence.
-3. Copy or download the report ID and secret token on the confirmation page. They appear once; the token cannot be recovered. Neither credential is placed in a URL or application log.
-4. Open the citizen inbox. Sign out, then return through **Check report** with the saved credentials to show that access persists.
-5. Open **Officer portal** and sign in. The dashboard computes totals and charts from database records. Search and filter reports by category, status, incident dates, description/ID, and location.
-6. Open the new report. Move **Submitted → Under Review → Additional Information Requested**; send a question. Internal notes are separate and never returned in the citizen API.
-7. Return to **Check report**, open the same report, read the question, and send an anonymous response. Refresh the officer report to see it.
-8. Open an uploaded evidence file and select **Verify integrity**. The backend decrypts it, authenticates the GCM tag, and compares its SHA-256 digest before returning any bytes. Images and videos can be previewed; PDFs download for inspection.
-9. View the audit log and account settings. Administrators can inspect system configuration; both roles can change their own passwords. Password changes invalidate all sessions for that account.
-
-The citizen and officer sessions can coexist in one browser. Each lasts 30 minutes and is independently revocable. Sign out of each workspace separately when sharing a demonstration computer.
-
-## Project structure
-
-```text
-backend/
-  app/config.py        Validated environment configuration
-  app/db.py            Database engine and scoped sessions
-  app/models.py        Tables, constraints, indexes, relationships
-  app/security.py      AES-GCM, Argon2id, HMAC and random credentials
-  app/schemas.py       Input validation
-  app/main.py          REST API, access control, files, audit, rate limits
-  app/seed.py          Explicit demonstration seed
-  migrations/          Alembic configuration and immutable initial migration
-  tests/               Unit and database-backed API integration tests
-frontend/
-  src/api.ts           Typed API client and CSRF headers
-  src/i18n.tsx         English, Kazakh and Russian interface dictionaries
-  src/main.tsx         Citizen and officer routes and components
-  src/style.css        Responsive navy/white interface and Tailwind
-  nginx.conf           Same-origin API proxy and security headers
-compose.yaml           PostgreSQL, API, web and persistent volumes
-database-schema.sql    Reference PostgreSQL DDL; use Alembic to migrate
-ARCHITECTURE.md         Diagram, trust boundaries and data protection
-VERIFICATION.md         Checks performed and environment limitations
-```
-
-## Tests
-
-The API test suite creates a temporary SQLite database by default, without Docker:
+## Development and tests
 
 ```sh
 cd backend
@@ -94,19 +53,7 @@ pip install -r requirements.txt
 pytest -q
 ```
 
-Tests generate their own encryption key and token pepper and isolate evidence in a temporary directory. They cover submission and invalid data, credential access, Argon2 login, RBAC, CSRF/origin checks, session expiry, logout, password revocation, encryption/context binding/tampering, file restrictions and size, evidence integrity and report isolation, messaging/internal-note privacy, status transitions, filters, security headers, and rate limits.
-
-Run the same suite against a **separate disposable PostgreSQL database** to verify the deployment database engine:
-
-From the project root, with the Compose services running:
-
-```sh
-sh test-postgres.sh
-```
-
-The test database is disposable. The script creates it if needed and only targets `witness_test`. It never deletes the main `witness` database.
-
-Frontend compile and bundle:
+The default tests use disposable SQLite solely as a test adapter. Set `TEST_DATABASE_URL` to a **disposable** PostgreSQL database to test the actual engine. The fixture drops and recreates tables: never supply a production database.
 
 ```sh
 cd frontend
@@ -114,14 +61,16 @@ npm ci
 npm run build
 ```
 
-For frontend development with Node.js 22, keep the Compose services running, then run `npm run dev` from `frontend`. Vite serves http://127.0.0.1:5173 and proxies `/api` to the persistent Docker app on port 8080, so credentials and reports match the main site. The generated local `.env` explicitly allows localhost and 127.0.0.1 on ports 8080 and 5173. For deployment, configure only the intended exact origins; unlisted origins remain rejected. If developing the API separately on port 8000, update the Vite proxy target and API origin configuration together.
+For frontend development, `npm run dev` proxies to the local API on port 8000. For local backend development use PostgreSQL and a private hosted Blob store, set exact local `ALLOWED_ORIGIN` and `SECURE_COOKIES=false` only for local HTTP. Production uses HTTPS and secure staff cookies.
 
-## Deployment boundary
+## Operational details
 
-This deliverable is a **local demonstration**, not a production law enforcement service. Local HTTP requires `SECURE_COOKIES=false`; secure cookies default to true in application code. For any real deployment, terminate HTTPS at a trusted reverse proxy, set `ALLOWED_ORIGIN` to its exact HTTPS origin and `SECURE_COOKIES=true`, restrict service networking, use managed secrets, review retention and access policies, and perform an independent security assessment. The published university demonstration uses Vercel HTTPS and Neon; it remains a demonstration, not an operational law enforcement service.
+- Messages are polled every 12 seconds while the page is visible. No long-running chat servers are needed.
+- Staff sessions expire and are invalidated by password reset/change, disabling an account, deleting it, or changing school assignments.
+- Owner and officer sessions are separate. First-login restrictions and school access checks are server-enforced.
+- Optional TOTP has replay prevention for sign-in. An owner can reset an officer's credentials and 2FA; owner recovery needs a deliberate server-side administrator process, not public password recovery.
+- The GitHub workflow runs backend tests and the frontend production build. Schema changes must be migrated explicitly before publishing code that requires them.
+- Blob encryption is application-managed. Keep the encryption key safe. Do not rotate it without a data re-encryption plan.
+- Push delivery depends on browser support, permission and the push service. Failures are retried; the site is **not monitored 24/7**. Student pages prominently direct immediate danger to **112**.
 
-Reports, messages, locations, original filenames, and evidence bytes are encrypted at rest. Category, status, dates/times, sizes, MIME types, hashes and audit metadata remain readable for database operations. Infrastructure still sees network metadata. This does not promise network-level anonymity or protection against a compromised server or stolen encryption key. Evidence metadata is not automatically stripped. The upload allowlist and signature checks do not replace malware scanning; only simulated files belong in this prototype. The app deliberately does not embed PDFs or execute attachments in the page.
-
-Rate limits are persisted atomically in the database and keyed by an HMAC of the connecting address. The shipped Nginx proxy is a single peer for the API, so its limits are shared by the local demo. For multi-user deployment, establish an explicitly trusted proxy chain and a reviewed client-address policy before enabling per-client limits. The API deliberately ignores untrusted forwarded headers. Access logs are disabled in Nginx and the shipped Uvicorn command; infrastructure logging remains the deployer's responsibility. Audit records describe administrative actions without storing report text or credentials, but are not a tamper-proof ledger against database administrators.
-
-Interface strings support all three languages. Report content is displayed as entered and is never sent to a translation service. Native browser date/file controls follow the browser's own locale. Timestamps use the Asia/Almaty timezone.
+See `ARCHITECTURE.md`, `DEPLOYMENT.md`, and `VERIFICATION.md` for technical details and deployment evidence. Private owner credentials and `.cloud/` state are ignored by Git.

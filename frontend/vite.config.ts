@@ -5,7 +5,7 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     strictPort: true,
-    // Reuse the persistent Docker database and the same demonstration credentials.
-    proxy: { "/api": "http://127.0.0.1:8080" },
+    // Use the local School Edition API; its database and Blob storage remain hosted.
+    proxy: { "/api": "http://127.0.0.1:8000" },
   },
 });

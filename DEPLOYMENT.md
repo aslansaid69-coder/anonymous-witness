@@ -1,78 +1,19 @@
-# GitHub + Vercel + Neon
+# School Edition deployment
 
-This repository contains the React/TypeScript frontend, Python/FastAPI API,
-PostgreSQL models, migrations, Docker setup, tests, and university presentation materials.
+Project: `atik24/anonymous-witness`. Repository: `aslansaid69-coder/anonymous-witness`.
+The public production domain remains https://anonymous-witness.vercel.app.
 
-## Verified deployment
+Follow the complete step-by-step procedure in README.md. Use separate Neon databases for preview/testing and production. Never set the destructive test fixture's `TEST_DATABASE_URL` to production.
 
-- Public URL: https://anonymous-witness.vercel.app
-- Vercel project: `atik24/anonymous-witness` (`prj_nRXVMDIEJyOQZRTOIrOCkincKAqU`).
-- Neon project: `old-mouse-98041206`, resource `anonymous-witness-db`, Free plan, Frankfurt.
-- Both migrations were applied to the new Neon database. All original records and encrypted file data were imported, with new cloud passwords for `demo.*` accounts.
-- The production site was published through the authenticated Vercel CLI. GitHub source is pushed to `main`; GitHub Actions checks pass. Automatic Vercel deployment on Git push is not connected: Vercel requires a GitHub Login Connection before `vercel git connect` succeeds. Until that connection is authorized, publish updates explicitly with `vercel deploy --prod --scope atik24` from the linked project directory.
-- Secrets live in Vercel environment variables. Local `.cloud/` files and `CLOUD-ДОСТУПЫ.txt` are ignored by Git and excluded from deployment source.
+1. Configure the Vercel GitHub login connection and grant the Vercel GitHub App access to this repository. Connect the repo in project Git settings. Production branch: `main`.
+2. Link Neon and a **private** Vercel Blob store. Keep Blob private; public unguessable URLs are not an access-control substitute.
+3. Configure all `.env.example` keys in the intended Vercel environments. Keep credentials out of Git and client-side environment variables. Preview must use an isolated database.
+4. Validate schema 003 and the complete school-isolation workflow in the isolated environment. Then apply 003 and seed the owner in production using the direct connection. No sample data is seeded.
+5. Stage a production build without assigning domains, run migrations at cutover, and promote the staged deployment. Subsequent pushes to `main` use native Vercel Git deployments.
+6. Sign in at `/owner`, change the temporary password, add real schools and assigned officers, and enable notifications/TOTP as needed. Existing legacy demo logins and report credentials no longer work.
 
-## Hosting layout
+The PWA is named **Notes** and uses a neutral icon. Its service worker caches only static resources and never handles API responses, case data or files. No third-party student trackers are configured. Public student network requests omit cookies.
 
-- Vercel builds `frontend/package.json` with `vercel-build` and serves static assets.
-- `/api/*` routes to the ASGI app in `api/index.py`, which imports the existing FastAPI backend.
-- Neon PostgreSQL stores reports, messages, credentials, sessions, rate limits, and encrypted evidence.
-- `STORAGE_BACKEND=database` stores AES-256-GCM ciphertext in PostgreSQL `bytea`. Docker defaults to private filesystem storage and remains supported.
-- Files larger than 3 MiB are transmitted as authenticated 512 KiB chunks. Staged multipart data is encrypted immediately and expires after 30 minutes; expired uploads are cleaned when a new upload begins. Finalization validates all fields and file types and atomically creates the report. Download chunks also stay below the function response limit. The original 10 MiB/file and five-file limits remain.
+`/api/cron/maintenance` requires `Authorization: Bearer CRON_SECRET`. The Hobby-compatible daily schedule is in `vercel.json`. Cleanup and push retries must remain configured; use provider logs to investigate failed delivery without logging message bodies or codes.
 
-## Required production environment variables
-
-| Variable | Purpose |
-| --- | --- |
-| `DATABASE_URL` | Neon pooled connection string with `sslmode=require`; ordinary `postgresql://` is accepted |
-| `ENCRYPTION_KEY` | Base64-encoded 32-byte AES key; preserve the local key if importing existing data |
-| `TOKEN_PEPPER` | Preserve the local value if existing citizen tokens must continue to work |
-| `STORAGE_BACKEND` | `database` |
-| `SECURE_COOKIES` | `true` |
-| `ALLOWED_ORIGIN` | Exact HTTPS production origin |
-| `ALLOWED_ORIGINS` | Additional exact trusted origins, optional |
-| `SESSION_MINUTES` | `30` |
-
-Vercel's server-provided `VERCEL_URL` and `VERCEL_PROJECT_PRODUCTION_URL` are accepted as exact HTTPS origins. No wildcard Vercel domains or caller-supplied Host headers grant origin access. CSRF/session checks remain enforced.
-
-Do not use a local demo password for the hosted site. Rotate demo-account passwords during import and save the new credential in a local ignored file. Never put `.env`, database exports, tokens or account passwords in GitHub. No database credentials use a `VITE_` prefix or enter the browser bundle.
-
-## Provision and migrate
-
-1. Authenticate the GitHub CLI, Neon CLI, and Vercel CLI in the intended accounts. No credentials are committed to this repository.
-2. Create a Neon project or choose the intended existing project; use `aws-eu-central-1` for a European deployment. Create an isolated schema-check branch before testing migrations, then migrate the intended production branch.
-3. Use a **direct/non-pooled** Neon URL for Alembic:
-
-   ```sh
-   cd backend
-   # Supply DATABASE_URL, ENCRYPTION_KEY and TOKEN_PEPPER through environment variables.
-   alembic upgrade head
-   ```
-
-4. For existing Docker data, execute `scripts/export_local.py` inside the running API container with `PYTHONPATH=/app`; capture its output into a private, ignored `.cloud/` file. It exports encrypted report fields and encrypted file bytes together.
-5. Run `scripts/import_neon.py PRIVATE_TRANSFER_FILE` with the direct target URL and the original encryption secrets. It refuses to overwrite a nonempty target. Supply a newly generated `DEMO_PASSWORD` to rotate `demo.*` passwords. Sessions and rate-limit state are excluded. If there is no data to import, seed explicitly with `python -m app.seed`.
-6. Link a Vercel project, connect this GitHub repository, and set the required environment variables using Vercel's secret storage (CLI stdin or dashboard). Production uses the pooled Neon URL.
-7. Deploy with `vercel --prod`. Migrations run explicitly before publication, never on a public API request.
-8. Verify the actual deployment URL: health, officer authentication, citizen report creation, uploaded evidence/integrity, status update and anonymous reply. A successful source push or build alone does not verify hosting.
-
-For migrations on an existing Neon project, follow its branch-first workflow and test on an isolated branch before applying production changes. Do not point the destructive test fixture at the production database.
-
-## Local development and checks
-
-```sh
-cd backend
-pip install -r requirements.txt
-pytest -q
-```
-
-```sh
-cd frontend
-npm ci
-npm run build
-```
-
-GitHub Actions runs both checks. Docker still starts with `docker compose up --build -d`; it applies all Alembic migrations before serving. Both local disk evidence and cloud database evidence use the same encryption contexts and authenticated access checks.
-
-## Operational boundaries
-
-This remains an independent university demonstration. It does not contact government systems. PostgreSQL ciphertext storage is a practical small-project option; large evidence libraries should move to a private object store behind the same authorization layer. The staging cleanup is opportunistic, so completely idle abandoned uploads remain until the next upload starts. Vercel/platform request metadata may be logged by the hosting provider; application code does not log tokens or report content.
+Use `vercel logs --deployment <url> --query 'level:error' --since 1h` to inspect runtime failures. Use authenticated `vercel curl` for protected previews; do not weaken preview protection to run tests.

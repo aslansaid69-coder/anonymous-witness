@@ -1,135 +1,150 @@
-import React, { useState, useEffect, useContext, FormEvent } from "react";
+import React, {
+  useState,
+  useRef,
+  useEffect,
+  useContext,
+  createContext,
+  FormEvent,
+} from "react";
 import { createRoot } from "react-dom/client";
 import {
   BrowserRouter,
   Routes,
   Route,
   Link,
-  NavLink,
   useNavigate,
   useLocation,
   Navigate,
 } from "react-router-dom";
 import {
   Shield,
-  ArrowUpRight,
   ArrowRight,
+  ArrowUpRight,
   LockKeyhole,
   EyeOff,
   MessageSquare,
-  FileText,
-  KeyRound,
   Check,
-  ChevronRight,
-  LayoutDashboard,
-  FolderOpen,
-  History,
-  Settings as SettingsIcon,
-  LogOut,
+  ChevronDown,
   Search,
-  Upload,
+  KeyRound,
   Copy,
   Download,
-  CheckCircle2,
-  MapPin,
-  Clock,
-  RefreshCw,
+  Sun,
+  Moon,
+  LogOut,
+  Plus,
+  Settings,
+  School as SchoolIcon,
+  Users,
+  History,
+  FileText,
+  Bell,
   X,
-  Paperclip,
+  RefreshCw,
   Send,
-  Globe,
-  Menu,
-  ShieldCheck,
-  AlertCircle,
-  Activity,
 } from "lucide-react";
 import { Locale, Lang, useT } from "./i18n";
 import {
   api,
   ApiError,
-  categories,
-  statuses,
-  transitions,
-  Report,
-  ReportRow,
-  Evidence,
+  School,
+  CaseRow,
+  CaseDetail,
+  Attachment,
+  caseHeaders,
+  proof,
   saveFile,
-  submitReport,
-  fetchEvidence,
+  downloadAttachment,
+  date,
 } from "./api";
-import "./style.css";
-function stamp(value: string, lang: string) {
-  return new Intl.DateTimeFormat(
-    lang === "kk" ? "kk-KZ" : lang === "ru" ? "ru-KZ" : "en-GB",
-    { timeZone: "Asia/Almaty", dateStyle: "medium", timeStyle: "short" },
-  ).format(
-    new Date(
-      value.endsWith("Z") || /[+-]\d\d:\d\d$/.test(value) ? value : value + "Z",
-    ),
-  );
+import "./school.css";
+const StudentContext = createContext<{
+  school: School | null;
+  setSchool: (s: School | null) => void;
+  code: string;
+  setCode: (c: string) => void;
+}>({ school: null, setSchool: () => {}, code: "", setCode: () => {} });
+function ErrorBox({ error }: { error: string }) {
+  const t = useT();
+  return error ? (
+    <p role="alert" className="error">
+      {t(error)}
+    </p>
+  ) : null;
 }
-const notice =
-  "Demonstration only. Not connected to police or government systems. Do not submit real incidents or personal data.";
 function Brand() {
   return (
     <Link to="/" className="brand">
       <span className="brand-icon">
-        <Shield size={23} />
+        <Shield />
       </span>
       <span>
-        ANONYMOUS<span className="brand-second">WITNESS</span>
+        ANONYMOUS<span className="brand-sub">WITNESS</span>
       </span>
     </Link>
   );
 }
-function Language() {
-  const { lang, setLang } = useContext(Locale);
-  return (
-    <label className="language">
-      <Globe size={15} />
-      <span className="sr-only">Language</span>
-      <select value={lang} onChange={(e) => setLang(e.target.value as Lang)}>
-        <option value="en">EN</option>
-        <option value="kk">ҚАЗ</option>
-        <option value="ru">РУС</option>
-      </select>
-    </label>
-  );
-}
 function Header() {
   const t = useT();
-  const [open, setOpen] = useState(false);
+  const { lang, setLang } = useContext(Locale);
+  const [dark, setDark] = useState(
+    () =>
+      localStorage.getItem("school_theme") === "dark" ||
+      (!localStorage.getItem("school_theme") &&
+        matchMedia("(prefers-color-scheme: dark)").matches),
+  );
+  useEffect(() => {
+    document.documentElement.dataset.theme = dark ? "dark" : "light";
+    localStorage.setItem("school_theme", dark ? "dark" : "light");
+  }, [dark]);
   return (
-    <header className="header">
-      <div className="container header-inner">
-        <Brand />
-        <button
-          className="mobile-toggle"
-          aria-label="Menu"
-          onClick={() => setOpen(!open)}
-        >
-          <Menu />
-        </button>
-        <nav
-          className={open ? "nav open" : "nav"}
-          onClick={() => setOpen(false)}
-        >
-          <NavLink to="/" end>
-            {t("Home")}
-          </NavLink>
-          <a href="/#how">{t("How it works")}</a>
-          <a href="/#privacy">{t("Privacy")}</a>
-          <NavLink to="/track">{t("Check report")}</NavLink>
-        </nav>
-        <div className="header-actions">
-          <Language />
-          <Link className="officer-link" to="/officer/login">
-            {t("Officer portal")}
-            <ArrowUpRight size={15} />
-          </Link>
+    <>
+      <div className="topbar">{t("School Edition")}</div>
+      <header className="header">
+        <div className="container header-inner">
+          <Brand />
+          <div className="header-tools">
+            <label className="sr-only" htmlFor="language">
+              Language
+            </label>
+            <select
+              id="language"
+              className="language"
+              value={lang}
+              onChange={(e) => setLang(e.target.value as Lang)}
+            >
+              <option value="en">English</option>
+              <option value="ru">Русский</option>
+              <option value="kk">Қазақша</option>
+            </select>
+            <button
+              className="icon-button"
+              aria-label="Theme"
+              onClick={() => setDark(!dark)}
+            >
+              {dark ? <Sun /> : <Moon />}
+            </button>
+          </div>
         </div>
+      </header>
+    </>
+  );
+}
+function Emergency() {
+  const t = useT();
+  return (
+    <aside className="emergency" role="note">
+      <div className="container">
+        <a href="tel:112" className="emergency-number">
+          112 <ArrowUpRight size={16} />
+        </a>
+        <span>
+          {t(
+            "If someone is in immediate danger, call 112 now. This website is not monitored 24/7.",
+          )}
+        </span>
       </div>
-    </header>
+    </aside>
   );
 }
 function Footer() {
@@ -138,264 +153,216 @@ function Footer() {
     <footer>
       <div className="container">
         <div className="footer-top">
-          <div>
-            <Brand />
-            <p>{t("A voice for a safer community.")}</p>
-          </div>
-          <div className="footer-links">
-            <Link to="/report">{t("Submit a report")}</Link>
-            <Link to="/track">{t("Check report")}</Link>
-            <Link to="/officer/login">{t("Officer portal")}</Link>
-          </div>
+          <Brand />
+          <nav>
+            <Link to="/privacy">{t("Privacy")}</Link>
+            <Link to="/officer/login">{t("Staff sign in")}</Link>
+          </nav>
         </div>
-        <div className="footer-bottom">
-          <span>
-            {t("Created by Aslan Saidakhmet, Davlatbek, Dinmukhamed")}
-          </span>
-          <span>{t("University project · Kazakhstan")}</span>
-        </div>
+        <p>{t("Created by Aslan Saidakhmet, Davlatbek, Dinmukhamed")}</p>
       </div>
     </footer>
   );
 }
-function ErrorBox({ error }: { error: string }) {
+function SchoolPicker() {
   const t = useT();
-  return error ? (
-    <div className="error" role="alert">
-      <AlertCircle size={18} />
-      {t(error)}
-    </div>
-  ) : null;
-}
-function Status({ value }: { value: string }) {
-  const t = useT();
+  const { school, setSchool } = useContext(StudentContext);
+  const [schools, setSchools] = useState<School[]>([]);
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  const [error, setError] = useState("");
+  useEffect(() => {
+    api<School[]>("/schools")
+      .then(setSchools)
+      .catch((e) => setError(e.message));
+  }, []);
   return (
-    <span className={"status status-" + statuses.indexOf(value)}>
-      <i />
-      {t(value)}
-    </span>
-  );
-}
-function PrivacyNotice() {
-  const t = useT();
-  return (
-    <div className="privacy-notice">
-      <ShieldCheck size={20} />
-      <div>
-        <strong>{t("Privacy notice")}</strong>
-        <p>
+    <div className="school-picker">
+      <label>{t("Select your school")}</label>
+      <button
+        className="select-button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+      >
+        <SchoolIcon size={20} />
+        <span>{school?.name || t("Select your school")}</span>
+        <ChevronDown size={18} />
+      </button>
+      {open && (
+        <div className="school-menu">
+          <label className="search-input">
+            <Search size={18} />
+            <input
+              autoFocus
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder={t("Search schools")}
+              aria-label={t("Search schools")}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") setOpen(false);
+              }}
+            />
+          </label>
+          <div role="listbox" aria-label={t("Select your school")}>
+            {schools
+              .filter((s) =>
+                (s.name + " " + s.number)
+                  .toLowerCase()
+                  .includes(q.toLowerCase()),
+              )
+              .map((s) => (
+                <button
+                  key={s.id}
+                  role="option"
+                  aria-selected={school?.id === s.id}
+                  onClick={() => {
+                    setSchool(s);
+                    setOpen(false);
+                  }}
+                >
+                  {s.name}
+                  {school?.id === s.id && <Check size={18} />}
+                </button>
+              ))}
+            {!schools.filter((s) =>
+              (s.name + " " + s.number).toLowerCase().includes(q.toLowerCase()),
+            ).length && <p>{t("No matching schools")}</p>}
+          </div>
+        </div>
+      )}
+      <ErrorBox error={error} />
+      {!schools.length && !error && (
+        <p className="hint">
           {t(
-            "We do not ask for your name, email, phone number, or an account.",
-          )}{" "}
-          {t(
-            "Technical metadata such as IP addresses may be processed by infrastructure. Attachments can contain identifying metadata. Remove personal details before uploading.",
+            "Your school is not listed yet? Ask a trusted adult to contact your school.",
           )}
         </p>
-      </div>
+      )}
     </div>
   );
 }
 function Home() {
   const t = useT();
+  const { school } = useContext(StudentContext);
   return (
     <>
       <section className="hero">
         <div className="container hero-grid">
-          <div className="hero-copy">
-            <div className="eyebrow">
-              <span />
-              {t("For a safer Kazakhstan")}
-            </div>
-            <h1>
-              {t("Your voice matters.")}
-              <br />
-              <span>{t("Your identity stays yours.")}</span>
-            </h1>
-            <p className="hero-desc">
+          <div>
+            <span className="eyebrow">{t("School Edition")}</span>
+            <h1>{t("A safer school starts with a voice.")}</h1>
+            <p className="lead">
+              {t("Your message is anonymous. Nobody will ask who you are.")}
+            </p>
+            <p>
               {t(
-                "Share what you know. Help make your community safer, without sharing who you are.",
+                "If something feels wrong, you can speak up. Tell your school police officer about bullying, threats, violence or something you witnessed.",
               )}
             </p>
-            <div className="hero-buttons">
-              <Link to="/report" className="btn primary">
-                {t("Submit Anonymous Report")}
-                <ArrowUpRight size={18} />
+            <div className="home-form">
+              <SchoolPicker />
+              {school ? (
+                <Link to="/write" className="btn primary full">
+                  {t("Write a message")}
+                  <ArrowRight size={18} />
+                </Link>
+              ) : (
+                <button className="btn primary full" disabled>
+                  {t("Write a message")}
+                  <ArrowRight size={18} />
+                </button>
+              )}
+              <Link to="/case" className="btn secondary full">
+                {t("Check my case")}
+                <KeyRound size={18} />
               </Link>
-              <Link to="/track" className="text-link">
-                {t("Track an existing report")}
-                <ArrowRight size={16} />
-              </Link>
-            </div>
-            <div className="hero-trust">
-              <span>
-                <Check size={15} />
-                {t("No registration")}
-              </span>
-              <span>
-                <Check size={15} />
-                {t("Encrypted reports")}
-              </span>
-              <span>
-                <Check size={15} />
-                {t("Anonymous dialogue")}
-              </span>
             </div>
           </div>
           <div className="hero-visual" aria-hidden="true">
-            <div className="orb orb-one" />
-            <div className="orb orb-two" />
-            <div className="visual-grid" />
-            <div className="shield-halo">
-              <div className="shield-art">
-                <Shield size={100} strokeWidth={1} />
-                <LockKeyhole size={33} className="shield-lock" />
-              </div>
+            <div className="halo">
+              <Shield size={120} strokeWidth={1} />
+              <LockKeyhole className="halo-lock" size={36} />
             </div>
-            <div className="float-card float-top">
-              <span className="mini-icon">
-                <EyeOff size={20} />
-              </span>
-              <div>
-                <strong>{t("No identity required")}</strong>
-                <small>{t("No registration")}</small>
-              </div>
+            <div className="float-card">
+              <EyeOff />
+              <span>{t("No account needed")}</span>
               <span className="green-dot" />
             </div>
-            <div className="float-card float-bottom">
-              <span className="mini-icon">
-                <LockKeyhole size={20} />
-              </span>
-              <div>
-                <strong>{t("Encrypted at rest")}</strong>
-                <small>AES-256-GCM</small>
-              </div>
-              <ShieldCheck size={19} className="text-teal" />
+            <div className="visual-note">
+              <MessageSquare />
+              <span>{t("Only your school’s assigned officers")}</span>
             </div>
-            <span className="visual-caption">
-              <span className="green-dot" />
-              {t("Private access key")}
-            </span>
           </div>
         </div>
       </section>
-      <div className="demo-strip">
-        <div className="container">
-          <AlertCircle size={16} />
-          <span>{t(notice)}</span>
-        </div>
-      </div>
-      <section id="how" className="section container">
-        <div className="section-heading">
-          <div>
-            <div className="eyebrow">01 / {t("How it works")}</div>
-            <h2>{t("A small step. A safer community.")}</h2>
-          </div>
-          <p>{t("Three steps. Your identity stays private.")}</p>
-        </div>
-        <div className="steps">
+      <section className="container section">
+        <div className="feature-grid">
           {[
-            [
-              FileText,
-              "01",
-              "Report in confidence",
-              "Describe the incident and add any supporting evidence. No account or contact details needed.",
-            ],
-            [
-              KeyRound,
-              "02",
-              "Keep your access key",
-              "Save your report ID and secret token. They are the only way to return to your report.",
-            ],
-            [
-              MessageSquare,
-              "03",
-              "Stay in the conversation",
-              "Follow progress and answer questions through your private report inbox.",
-            ],
-          ].map(([Icon, n, title, desc]: any) => (
-            <article className="step" key={n}>
-              <div className="step-top">
-                <span className="feature-icon">
-                  <Icon size={24} />
-                </span>
-                <span className="step-number">{n}</span>
-              </div>
-              <h3>{t(title)}</h3>
-              <p>{t(desc)}</p>
-            </article>
+            [EyeOff, "No account needed"],
+            [SchoolIcon, "Only your school’s assigned officers"],
+            [KeyRound, "Keep your Case Code"],
+          ].map(([Icon, label]: any) => (
+            <div className="feature" key={label}>
+              <Icon size={25} />
+              <h3>{t(label)}</h3>
+            </div>
           ))}
         </div>
-      </section>
-      <section id="privacy" className="privacy-section">
-        <div className="container privacy-grid">
-          <div>
-            <div className="eyebrow">02 / {t("Privacy")}</div>
-            <h2>{t("Built around your privacy")}</h2>
-            <div className="privacy-emblem">
-              <ShieldCheck size={82} strokeWidth={1} />
-              <span>ANONYMOUS BY DESIGN</span>
-            </div>
-          </div>
-          <div className="privacy-points">
-            {[
-              [
-                EyeOff,
-                "You choose what to share",
-                "We do not ask for your name, email, phone number, or an account.",
-              ],
-              [
-                LockKeyhole,
-                "Sensitive content is encrypted",
-                "Report text, location, messages, and evidence are encrypted at rest using AES-256-GCM.",
-              ],
-              [
-                AlertCircle,
-                "Understand the limits",
-                "Technical metadata such as IP addresses may be processed by infrastructure. Attachments can contain identifying metadata. Remove personal details before uploading.",
-              ],
-            ].map(([Icon, title, desc]: any) => (
-              <div key={title}>
-                <Icon size={22} />
-                <div>
-                  <h3>{t(title)}</h3>
-                  <p>{t(desc)}</p>
-                </div>
-              </div>
-            ))}
-          </div>
+        <div className="how">
+          <h2>{t("How it works")}</h2>
+          <p>
+            {t(
+              "Choose your school, write what happened, and save your private Case Code. Return with that code to read replies and continue the conversation.",
+            )}
+          </p>
         </div>
-      </section>
-      <section className="container cta">
-        <div>
-          <div className="eyebrow">{t("For a safer Kazakhstan")}</div>
-          <h2>{t("Today, you can make a difference.")}</h2>
-          <p>{t("A more informed community is a safer community.")}</p>
-        </div>
-        <Link to="/report" className="btn primary">
-          {t("Submit Anonymous Report")}
-          <ArrowUpRight size={18} />
-        </Link>
       </section>
     </>
   );
 }
-type Credentials = { report_number: string; token: string };
-function Submit() {
+function AttachmentField() {
   const t = useT();
-  const navigate = useNavigate();
-  const [files, setFiles] = useState<File[]>([]);
-  const [busy, setBusy] = useState(false);
+  return (
+    <label>
+      {t("Optional attachment")}
+      <input
+        name="attachment"
+        type="file"
+        accept="image/jpeg,image/png,application/pdf"
+      />
+      <small>
+        {t(
+          "JPG, PNG or PDF · up to 3 MB · PDFs up to 12 pages. Original file metadata is removed.",
+        )}
+      </small>
+    </label>
+  );
+}
+function Write() {
+  const t = useT();
+  const nav = useNavigate();
+  const { school, setCode } = useContext(StudentContext);
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (!school) return;
     setBusy(true);
     setError("");
     try {
-      const data = new FormData(e.currentTarget);
-      data.delete("files");
-      files.forEach((f) => data.append("files", f));
-      const creds = await submitReport<Credentials>(data);
-      navigate("/confirmation", { state: creds });
+      const form = new FormData(e.currentTarget);
+      form.set("school_id", school.id);
+      const file = form.get("attachment");
+      if (file instanceof File && !file.size) form.delete("attachment");
+      if (file instanceof File && file.size > 3 * 1024 * 1024)
+        throw new Error("File must be 3 MB or less");
+      const config = await api("/public/config");
+      form.set("challenge_token", config.challenge);
+      form.set("proof", await proof(config.challenge));
+      const result = await api("/cases", { method: "POST", body: form });
+      setCode(result.case_code);
+      nav("/saved");
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -403,371 +370,154 @@ function Submit() {
     }
   }
   return (
-    <main className="container form-page">
-      <div className="page-intro">
-        <div className="eyebrow">
-          <LockKeyhole size={14} />
-          {t("Confidential reporting")}
-        </div>
-        <h1>{t("Tell us what happened")}</h1>
-        <p>
-          {t("Use fictional information for this university demonstration.")}
-        </p>
-      </div>
-      <div className="form-layout">
-        <form className="panel report-form" onSubmit={submit}>
-          <ErrorBox error={error} />
-          <label>
-            {t("Incident category")}
-            <select name="category" required defaultValue="">
-              <option value="" disabled>
-                {t("Select a category")}
-              </option>
-              {categories.map((c) => (
-                <option value={c} key={c}>
-                  {t(c)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            {t("Incident description")}
-            <textarea
-              name="description"
-              required
-              minLength={20}
-              maxLength={10000}
-              rows={6}
-              placeholder={t(
-                "Describe what you observed, including useful details. Avoid personal information.",
-              )}
-            />
-          </label>
-          <div className="two-col">
-            <label>
-              {t("Approximate date")}
-              <input
-                type="date"
-                name="incident_date"
-                required
-                max={new Intl.DateTimeFormat("en-CA", {
-                  timeZone: "Asia/Almaty",
-                  year: "numeric",
-                  month: "2-digit",
-                  day: "2-digit",
-                }).format(new Date())}
-              />
-            </label>
-            <label>
-              {t("Approximate time")}
-              <input type="time" name="incident_time" required />
-            </label>
-          </div>
-          <label>
-            {t("Incident location")}
-            <input
-              name="location"
-              minLength={3}
-              maxLength={500}
-              required
-              placeholder={t("City, district, street or landmark")}
-            />
-          </label>
-          <div>
-            <div className="field-label">
-              {t("Supporting evidence")}{" "}
-              <span className="muted">· {t("Optional")}</span>
-            </div>
-            <label className="upload-zone">
-              <Upload size={24} />
-              <strong>{t("Choose files")}</strong>
-              <span>
-                {t("Up to 5 files · 10 MB each · JPG, PNG, PDF, MP4, WebM")}
-              </span>
-              <input
-                type="file"
-                name="files"
-                multiple
-                accept=".jpg,.jpeg,.png,.pdf,.mp4,.webm"
-                onChange={(e) => {
-                  const list = Array.from(e.target.files || []);
-                  if (
-                    list.length > 5 ||
-                    list.some(
-                      (f) =>
-                        f.size > 10 * 1024 * 1024 ||
-                        !/\.(jpg|jpeg|png|pdf|mp4|webm)$/i.test(f.name),
-                    )
-                  ) {
-                    setError(
-                      "Please select at most 5 supported files, each no larger than 10 MB.",
-                    );
-                    e.target.value = "";
-                    return;
-                  }
-                  setFiles(list);
-                  setError("");
-                }}
-              />
-            </label>
-            <div className="file-list">
-              {files.map((f, i) => (
-                <div key={i}>
-                  <Paperclip size={15} />
-                  <span>{f.name}</span>
-                  <small>{(f.size / 1024).toFixed(0)} KB</small>
-                  <button
-                    type="button"
-                    aria-label={t("Close")}
-                    onClick={() => setFiles(files.filter((_, j) => i !== j))}
-                  >
-                    <X size={16} />
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-          <PrivacyNotice />
-          <label className="checkbox">
-            <input type="checkbox" required />
-            {t(
-              "I understand this is a demonstration and have read the privacy notice.",
-            )}
-          </label>
-          <button className="btn primary full" disabled={busy}>
-            {busy ? t("Submitting…") : t("Submit securely")}
-            <ArrowRight size={17} />
-          </button>
-        </form>
-        <aside className="form-aside">
-          <span className="feature-icon">
-            <ShieldCheck size={27} />
-          </span>
-          <h3>{t("Your identity stays yours.")}</h3>
-          {["No registration", "Encrypted reports", "Anonymous dialogue"].map(
-            (x) => (
-              <p key={x}>
-                <Check size={17} />
-                {t(x)}
-              </p>
-            ),
-          )}
-          <hr />
-          <p className="aside-note">{t(notice)}</p>
-        </aside>
-      </div>
+    <main className="narrow page">
+      <Link to="/" className="back">
+        ← {t("Back")}
+      </Link>
+      <span className="eyebrow">{t("School Edition")}</span>
+      <h1>{t("Tell us what happened")}</h1>
+      <p>
+        {t(
+          "You can share as much as you feel comfortable sharing. Avoid details that identify you, including faces in photos.",
+        )}
+      </p>
+      <form className="panel form-stack" onSubmit={submit}>
+        <SchoolPicker />
+        <label>
+          {t("Your message")}
+          <textarea
+            name="text"
+            required
+            minLength={5}
+            maxLength={10000}
+            rows={6}
+          />
+        </label>
+        <label>
+          {t("I am… (optional)")}
+          <select name="role" defaultValue="">
+            <option value="">{t("Prefer not to say")}</option>
+            <option value="victim">{t("A victim")}</option>
+            <option value="witness">{t("A witness")}</option>
+          </select>
+        </label>
+        <AttachmentField />
+        <label className="honeypot" aria-hidden="true">
+          Website
+          <input name="website" autoComplete="off" tabIndex={-1} />
+        </label>
+        <ErrorBox error={error} />
+        <button className="btn primary full" disabled={busy || !school}>
+          {t(busy ? "Sending…" : "Send anonymously")}
+          <ArrowRight size={18} />
+        </button>
+        <Link to="/privacy" className="subtle-link">
+          {t("Privacy")}
+        </Link>
+      </form>
     </main>
   );
 }
-function Confirmation() {
+function Saved() {
   const t = useT();
-  const nav = useNavigate();
-  const location = useLocation();
-  const [creds] = useState<Credentials | null>(
-    () => location.state as Credentials,
-  );
+  const { code } = useContext(StudentContext);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState("");
-  useEffect(() => {
-    window.history.replaceState({ ...window.history.state, usr: null }, "");
-  }, []);
-  if (!creds) return <Navigate to="/track" replace />;
-  const text = `Anonymous Witness\nReport ID: ${creds.report_number}\nSecret access token: ${creds.token}\nKeep private. Lost access tokens cannot be recovered.`;
+  if (!code) return <Navigate to="/case" replace />;
   return (
-    <main className="narrow page">
-      <div className="success-icon">
-        <CheckCircle2 size={32} />
-      </div>
-      <h1>{t("Your report has been submitted")}</h1>
-      <p>{t("Save these credentials now. They are shown only once.")}</p>
-      <div className="panel credential-panel">
+    <main className="narrow page center">
+      <span className="success-icon">
+        <Check size={32} />
+      </span>
+      <h1>{t("Save this code")}</h1>
+      <p>
+        {t(
+          "Your message was sent. This Case Code is the only way to return. We cannot recover it if you lose it.",
+        )}
+      </p>
+      <div className="panel">
         <label>
-          {t("Report ID")}
-          <code>{creds.report_number}</code>
-        </label>
-        <label>
-          {t("Secret access token")}
-          <code>{creds.token}</code>
+          {t("Case Code")}
+          <code className="case-code">{code}</code>
         </label>
         <div className="two-col">
           <button
             className="btn secondary"
             onClick={async () => {
               try {
-                await navigator.clipboard.writeText(text);
+                await navigator.clipboard.writeText(code);
                 setCopied(true);
               } catch {
                 setError("Request failed");
               }
             }}
           >
-            <Copy size={16} />
-            {t(copied ? "Copied" : "Copy credentials")}
+            <Copy size={18} />
+            {t(copied ? "Copied" : "Copy code")}
           </button>
           <button
             className="btn secondary"
             onClick={() =>
               saveFile(
-                new Blob([text], { type: "text/plain" }),
-                "anonymous-witness-credentials.txt",
+                new Blob(
+                  [
+                    "Case Code: " +
+                      code +
+                      "\nhttps://anonymous-witness.vercel.app/case\nKeep this code private.",
+                  ],
+                  { type: "text/plain" },
+                ),
+                "my-case-code.txt",
               )
             }
           >
-            <Download size={16} />
-            {t("Download credentials")}
+            <Download size={18} />
+            {t("Download code")}
           </button>
         </div>
-      </div>
-      <div className="warning">
-        <KeyRound size={19} />
-        {t(
-          "If you lose your token, access cannot be recovered. Keep it somewhere private.",
-        )}
       </div>
       <ErrorBox error={error} />
-      <button
-        className="btn primary full"
-        onClick={async () => {
-          try {
-            await api(
-              "/citizen/access",
-              { method: "POST", body: JSON.stringify(creds) },
-              "citizen",
-            );
-            nav("/inbox");
-          } catch (e) {
-            setError((e as Error).message);
-          }
-        }}
-      >
-        {t("Open report inbox")}
-        <ArrowRight size={17} />
-      </button>
+      <Link to="/case" className="btn primary full">
+        {t("Open my case")}
+        <ArrowRight size={18} />
+      </Link>
     </main>
   );
 }
-function Access({ officer = false }: { officer?: boolean }) {
-  const t = useT();
-  const nav = useNavigate();
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  async function submit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setBusy(true);
-    setError("");
-    const data = Object.fromEntries(new FormData(e.currentTarget));
-    try {
-      await api(
-        officer ? "/officer/login" : "/citizen/access",
-        { method: "POST", body: JSON.stringify(data) },
-        officer ? "officer" : "citizen",
-      );
-      nav(officer ? "/officer" : "/inbox");
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-  return (
-    <main className="auth-page">
-      <div className="auth-art">
-        <Shield size={100} strokeWidth={1} />
-        <div className="eyebrow">ANONYMOUS WITNESS</div>
-        <h2>{t("Your voice matters.")}</h2>
-        <p>{t(notice)}</p>
-      </div>
-      <div className="auth-content">
-        <div className="eyebrow">
-          <LockKeyhole size={15} />
-          {t("Secure workspace")}
-        </div>
-        <h1>{t(officer ? "Officer sign in" : "Your private report inbox")}</h1>
-        <p>
-          {t(
-            officer
-              ? "Authorized demonstration personnel only."
-              : "Enter the credentials you received when submitting your report.",
-          )}
-        </p>
-        <form onSubmit={submit}>
-          <ErrorBox error={error} />
-          <label>
-            {t(officer ? "Username" : "Report ID")}
-            <input
-              name={officer ? "username" : "report_number"}
-              required
-              autoComplete={officer ? "username" : "off"}
-              maxLength={80}
-              placeholder={officer ? "demo.officer" : "AW-2026-…"}
-            />
-          </label>
-          <label>
-            {t(officer ? "Password" : "Secret access token")}
-            <input
-              name={officer ? "password" : "token"}
-              type="password"
-              required
-              autoComplete={officer ? "current-password" : "off"}
-              maxLength={200}
-            />
-          </label>
-          <button className="btn primary full" disabled={busy}>
-            {t(
-              busy
-                ? officer
-                  ? "Signing in…"
-                  : "Accessing…"
-                : officer
-                  ? "Sign in"
-                  : "Access report",
-            )}
-            <ArrowRight size={17} />
-          </button>
-        </form>
-        <Link to={officer ? "/track" : "/report"} className="text-link">
-          {t(officer ? "Check report" : "Submit a report")}
-          <ArrowUpRight size={16} />
-        </Link>
-      </div>
-    </main>
-  );
-}
-function EvidenceModal({
+function FileView({
   item,
   kind,
+  code,
   onClose,
 }: {
-  item: Evidence;
+  item: Attachment;
   kind: string;
+  code: string;
   onClose: () => void;
 }) {
   const t = useT();
   const [url, setUrl] = useState("");
   const [error, setError] = useState("");
-  const [verified, setVerified] = useState(false);
   useEffect(() => {
     let active = true;
     let object = "";
-    fetchEvidence(item, kind)
+    downloadAttachment(item, kind, code)
       .then((b) => {
         object = URL.createObjectURL(b);
         if (active) setUrl(object);
       })
-      .catch((e) => {
-        if (active) setError(e.message);
-      });
+      .catch((e) => setError(e.message));
     return () => {
       active = false;
       if (object) URL.revokeObjectURL(object);
     };
-  }, [item.id]);
+  }, [item.id, kind, code]);
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
+    const f = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
+    window.addEventListener("keydown", f);
+    return () => window.removeEventListener("keydown", f);
   }, [onClose]);
   return (
     <div className="modal-backdrop">
@@ -775,363 +525,454 @@ function EvidenceModal({
         className="modal"
         role="dialog"
         aria-modal="true"
-        aria-label={t("Evidence viewer")}
+        aria-label={t("Attachment")}
       >
-        <div className="modal-header">
-          <div>
-            <small>{t("Evidence viewer")}</small>
-            <h3>{item.filename}</h3>
-          </div>
-          <button autoFocus aria-label={t("Close")} onClick={onClose}>
+        <div className="row between">
+          <h2>{t("Attachment")}</h2>
+          <button
+            autoFocus
+            className="icon-button"
+            aria-label={t("Close")}
+            onClick={onClose}
+          >
             <X />
           </button>
         </div>
         <ErrorBox error={error} />
-        <div className="evidence-preview">
-          {!url && !error ? (
-            t("Loading…")
-          ) : item.mime_type.startsWith("image/") ? (
-            <img src={url} alt={item.filename} />
-          ) : item.mime_type.startsWith("video/") ? (
-            <video controls src={url} />
-          ) : (
-            <div>
-              <FileText size={55} />
-              <p>{t("File preview is unavailable. Download to inspect.")}</p>
-            </div>
+        {url && item.mime === "image/jpeg" && (
+          <img className="attachment-image" src={url} alt={t("Attachment")} />
+        )}
+        <p>
+          {t(
+            "Original names, EXIF and GPS are not saved. Photos are re-encoded and PDF pages are converted to clean images. Visible personal information is not automatically hidden.",
           )}
-        </div>
-        <div className="hash">
-          <small>SHA-256</small>
-          <code>{item.sha256}</code>
-        </div>
-        <div className="modal-actions">
-          <button
-            className="btn secondary"
-            onClick={async () => {
-              try {
-                await api(
-                  "/evidence/" + item.id + "/verify",
-                  { method: "POST" },
-                  kind,
-                );
-                setVerified(true);
-              } catch (e) {
-                setError((e as Error).message);
-              }
-            }}
+        </p>
+        {url ? (
+          <a
+            className="btn primary"
+            href={url}
+            download={
+              "attachment." + (item.mime === "application/pdf" ? "pdf" : "jpg")
+            }
           >
-            <ShieldCheck size={17} />
-            {t(verified ? "Integrity verified" : "Verify integrity")}
-          </button>
-          {url && (
-            <a className="btn primary" href={url} download={item.filename}>
-              <Download size={17} />
-              {t("Download original")}
-            </a>
-          )}
-        </div>
+            {t("Download")}
+            <Download size={18} />
+          </a>
+        ) : (
+          !error && <p>{t("Loading…")}</p>
+        )}
       </section>
     </div>
   );
 }
-function ReportDetail({ officer = false }: { officer?: boolean }) {
+function Conversation({
+  value,
+  kind,
+  code = "",
+  refresh,
+}: {
+  value: CaseDetail;
+  kind: string;
+  code?: string;
+  refresh: () => Promise<void>;
+}) {
   const t = useT();
-  const nav = useNavigate();
-  const location = useLocation();
-  const id = location.pathname.split("/").pop();
-  const [report, setReport] = useState<Report | null>(null);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
-  const [next, setNext] = useState("");
-  const [internal, setInternal] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [evidence, setEvidence] = useState<Evidence | null>(null);
-  const kind = officer ? "officer" : "citizen";
-  const path = officer ? "/officer/reports/" + id : "/citizen/report";
-  async function load() {
-    try {
-      setReport(await api<Report>(path, {}, kind));
-      setError("");
-    } catch (e) {
-      if (e instanceof ApiError && e.status === 401)
-        nav(officer ? "/officer/login" : "/track");
-      else setError((e as Error).message);
-    }
-  }
-  useEffect(() => {
-    load();
-  }, [path]);
+  const [file, setFile] = useState<Attachment | null>(null);
   async function send(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setBusy(true);
+    setError("");
     const form = e.currentTarget;
-    const text = new FormData(form).get("text");
     try {
-      await api(
-        officer ? path + "/messages?internal=" + internal : "/citizen/messages",
-        { method: "POST", body: JSON.stringify({ text }) },
-        kind,
-      );
+      const data = new FormData(form);
+      if (kind === "student") {
+        const attachment = data.get("attachment");
+        if (attachment instanceof File && !attachment.size)
+          data.delete("attachment");
+        if (attachment instanceof File && attachment.size > 3 * 1024 * 1024)
+          throw new Error("File must be 3 MB or less");
+        await api("/student/messages", {
+          method: "POST",
+          body: data,
+          headers: caseHeaders(code),
+        });
+      } else
+        await api(
+          `/officer/cases/${value.id}/messages`,
+          { method: "POST", body: JSON.stringify({ text: data.get("text") }) },
+          "officer",
+        );
       form.reset();
-      setNotice(internal ? "Note added" : "Message sent");
-      await load();
+      await refresh();
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setBusy(false);
     }
   }
-  if (!report)
-    return (
-      <main className="container page">
-        <ErrorBox error={error} />
-        {t("Loading…")}
-      </main>
-    );
   return (
-    <main className={officer ? "detail-page" : "container page detail-page"}>
-      {officer && (
-        <Link to="/officer/reports" className="text-link">
-          ← {t("Back to reports")}
-        </Link>
-      )}
-      <div className="detail-heading">
-        <div>
-          <div className="eyebrow">{report.report_number}</div>
-          <h1>{t("Incident details")}</h1>
-        </div>
-        <div className="inline-actions">
-          <button className="btn secondary" onClick={load}>
-            <RefreshCw size={16} />
-            {t("Refresh")}
-          </button>
-          {!officer && (
-            <button
-              className="btn secondary"
-              onClick={async () => {
-                await api("/logout/citizen", { method: "POST" }, "citizen");
-                nav("/track");
-              }}
-            >
-              {t("Sign out")}
-            </button>
-          )}
-        </div>
+    <>
+      <div className="conversation-messages" aria-live="polite">
+        {value.messages.map((m) => (
+          <article
+            key={m.id}
+            className={
+              "bubble " +
+              (m.sender === (kind === "student" ? "student" : "officer")
+                ? "own"
+                : "")
+            }
+          >
+            <div className="bubble-head">
+              <strong>
+                {t(
+                  m.sender === "student"
+                    ? "Anonymous student"
+                    : "School police officer",
+                )}
+              </strong>
+              <time>{date(m.created_at, t("__locale"))}</time>
+            </div>
+            <p>{m.text}</p>
+            {m.attachment && (
+              <button
+                className="attachment-link"
+                onClick={() => setFile(m.attachment)}
+              >
+                <FileText size={18} />
+                {t("Open attachment")}
+              </button>
+            )}
+          </article>
+        ))}
       </div>
       <ErrorBox error={error} />
-      {notice && (
-        <div className="success" role="status">
-          {t(notice)}
-        </div>
+      {value.status === "Closed" ? (
+        <p className="closed-notice">{t("This case is closed")}</p>
+      ) : (
+        <form className="composer form-stack" onSubmit={send}>
+          <label className="sr-only" htmlFor="reply">
+            {t("Type your message")}
+          </label>
+          <textarea
+            id="reply"
+            name="text"
+            required
+            maxLength={10000}
+            rows={3}
+            placeholder={t("Type your message")}
+          />
+          {kind === "student" && <AttachmentField />}
+          <button className="btn primary" disabled={busy}>
+            {t(busy ? "Sending…" : "Send reply")}
+            <Send size={18} />
+          </button>
+        </form>
       )}
-      <div className="detail-grid">
-        <div>
-          <section className="panel">
-            <div className="report-title">
-              <h3>{t(report.category)}</h3>
-              <Status value={report.status} />
-            </div>
-            <p className="report-description">{report.description}</p>
-            <div className="report-meta">
-              <span>
-                <MapPin size={16} />
-                {report.location}
-              </span>
-              <span>
-                <Clock size={16} />
-                {report.incident_date} · {report.incident_time.slice(0, 5)}
-              </span>
-            </div>
-          </section>
-          <section className="panel">
-            <h3>
-              {t("Supporting evidence")}{" "}
-              <span className="count">{report.evidence.length}</span>
-            </h3>
-            {report.evidence.length ? (
-              report.evidence.map((e) => (
-                <button
-                  key={e.id}
-                  className="evidence-row"
-                  onClick={() => setEvidence(e)}
-                >
-                  <span className="feature-icon">
-                    <FileText size={20} />
-                  </span>
-                  <span>
-                    <strong>{e.filename}</strong>
-                    <small>
-                      {(e.size / 1024).toFixed(1)} KB · {t("Open evidence")}
-                    </small>
-                  </span>
-                  <ChevronRight size={18} />
-                </button>
-              ))
-            ) : (
-              <p className="empty">{t("No evidence attached")}</p>
-            )}
-          </section>
-          <section className="panel messages-panel">
-            <div className="tabs">
-              <button
-                className={!internal ? "active" : ""}
-                onClick={() => setInternal(false)}
-              >
-                {t("Messages")}
-              </button>
-              {officer && (
-                <button
-                  className={internal ? "active" : ""}
-                  onClick={() => setInternal(true)}
-                >
-                  {t("Internal notes")}
-                </button>
-              )}
-            </div>
-            <div className="messages">
-              {report.messages.filter((m) =>
-                internal
-                  ? m.sender_type === "internal"
-                  : m.sender_type !== "internal",
-              ).length ? (
-                report.messages
-                  .filter((m) =>
-                    internal
-                      ? m.sender_type === "internal"
-                      : m.sender_type !== "internal",
-                  )
-                  .map((m) => (
-                    <div
-                      key={m.id}
-                      className={
-                        "message " +
-                        (m.sender_type === (officer ? "officer" : "citizen") ||
-                        m.sender_type === "internal"
-                          ? "own"
-                          : "")
-                      }
-                    >
-                      <div className="message-head">
-                        <strong>
-                          {t(
-                            m.sender_type === "citizen"
-                              ? "Citizen"
-                              : m.sender_type === "officer"
-                                ? "Officer"
-                                : "Internal",
-                          )}
-                        </strong>
-                        <small>{stamp(m.created_at, t("__locale"))}</small>
-                      </div>
-                      <p>{m.text}</p>
-                      <small>{t(m.read_at ? "Read" : "Sent")}</small>
-                    </div>
-                  ))
-              ) : (
-                <p className="empty">{t("No messages yet")}</p>
-              )}
-            </div>
-            <form onSubmit={send}>
-              <textarea
-                name="text"
-                required
-                minLength={1}
-                maxLength={5000}
-                rows={3}
-                aria-label={t("Messages")}
-                placeholder={t(
-                  "Write a message. Do not include identifying details.",
-                )}
-              />
-              <button className="btn primary" disabled={busy}>
-                {t(internal ? "Add internal note" : "Send message")}
-                <Send size={16} />
-              </button>
-            </form>
-          </section>
-        </div>
-        <aside>
-          <section className="panel">
-            <h3>{t("Status timeline")}</h3>
-            <div className="timeline">
-              {report.history.map((h, i) => (
-                <div key={i}>
-                  <span className="timeline-dot" />
-                  <strong>{t(h.status)}</strong>
-                  <small>{stamp(h.created_at, t("__locale"))}</small>
-                </div>
-              ))}
-            </div>
-          </section>
-          {officer && (
-            <section className="panel">
-              <h3>{t("Update status")}</h3>
-              <select
-                value={next}
-                aria-label={t("Select next status")}
-                onChange={(e) => setNext(e.target.value)}
-              >
-                <option value="">{t("Select next status")}</option>
-                {transitions[report.status].map((s) => (
-                  <option value={s} key={s}>
-                    {t(s)}
-                  </option>
-                ))}
-              </select>
-              <button
-                className="btn primary full"
-                disabled={!next || busy}
-                onClick={async () => {
-                  setBusy(true);
-                  try {
-                    await api(path + "/status", {
-                      method: "PATCH",
-                      body: JSON.stringify({ status: next }),
-                    });
-                    setNext("");
-                    setNotice("Status updated");
-                    await load();
-                  } catch (e) {
-                    setError((e as Error).message);
-                  } finally {
-                    setBusy(false);
-                  }
-                }}
-              >
-                {t("Save status")}
-              </button>
-            </section>
-          )}
-          {!officer && <PrivacyNotice />}
-        </aside>
-      </div>
-      {evidence && (
-        <EvidenceModal
-          item={evidence}
+      {file && (
+        <FileView
+          item={file}
           kind={kind}
-          onClose={() => setEvidence(null)}
+          code={code}
+          onClose={() => setFile(null)}
         />
+      )}
+    </>
+  );
+}
+function StudentCase() {
+  const t = useT();
+  const { code, setCode } = useContext(StudentContext);
+  const [value, setValue] = useState<CaseDetail | null>(null);
+  const [input, setInput] = useState("");
+  const [error, setError] = useState("");
+  const currentCode = useRef(code);
+  currentCode.current = code;
+  async function refresh() {
+    if (!code) return;
+    try {
+      const result = await api<CaseDetail>("/student/case", {
+        headers: caseHeaders(code),
+      });
+      if (currentCode.current !== code) return;
+      setValue(result);
+      setError("");
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+  useEffect(() => {
+    setValue(null);
+    refresh();
+    const id = setInterval(() => {
+      if (!document.hidden) refresh();
+    }, 12000);
+    return () => clearInterval(id);
+  }, [code]);
+  return (
+    <main className="narrow page">
+      <h1>{t("Check my case")}</h1>
+      {!value ? (
+        <>
+          <p>
+            {t("Enter the Case Code you saved after sending your message.")}
+          </p>
+          <form
+            className="panel form-stack"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (code === input) refresh();
+              else setCode(input);
+            }}
+          >
+            <label>
+              {t("Case Code")}
+              <input
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                required
+                maxLength={40}
+                autoComplete="off"
+                autoCapitalize="characters"
+                spellCheck={false}
+              />
+            </label>
+            <ErrorBox error={error} />
+            <button className="btn primary">
+              {t("Open case")}
+              <ArrowRight size={18} />
+            </button>
+          </form>
+        </>
+      ) : (
+        <>
+          <div className="case-header">
+            <div>
+              <span className="eyebrow">{value.school}</span>
+              <h2>{t("Anonymous student")}</h2>
+            </div>
+            <span className={"status " + value.status.replace(" ", "-")}>
+              {t(value.status)}
+            </span>
+          </div>
+          <p className="hint">
+            {t(
+              "Your Case Code stays only in this page’s memory. Reloading the page requires entering it again.",
+            )}
+          </p>
+          <div className="panel chat-panel">
+            <Conversation
+              value={value}
+              kind="student"
+              code={code}
+              refresh={refresh}
+            />
+          </div>
+          <div className="row between">
+            <button className="btn secondary" onClick={refresh}>
+              <RefreshCw size={18} />
+              {t("Refresh")}
+            </button>
+            <button
+              className="btn secondary"
+              onClick={() => {
+                setCode("");
+                setInput("");
+                setValue(null);
+              }}
+            >
+              {t("Leave case")}
+            </button>
+          </div>
+          <ErrorBox error={error} />
+        </>
       )}
     </main>
   );
 }
-function OfficerShell() {
+function Privacy() {
+  const t = useT();
+  return (
+    <main className="narrow page privacy-page">
+      <span className="eyebrow">{t("School Edition")}</span>
+      <h1>{t("Privacy in simple words")}</h1>
+      {[
+        "We do not ask for your name, email, phone number or city. There are no student accounts.",
+        "We do not store student IP addresses, device fingerprints, analytics trackers or student identity cookies. Your case is accessed only with its random code.",
+        "Your school, messages, optional victim/witness choice and attachments are stored. Message contents and cleaned attachments are encrypted. Only officers assigned to your school can read them. The owner sees statistics, not conversations.",
+        "Original names, EXIF and GPS are not saved. Photos are re-encoded and PDF pages are converted to clean images. Visible personal information is not automatically hidden.",
+        "Hosting providers may process network information to deliver and protect the website. We cannot promise absolute anonymity if you include identifying details in your message.",
+        "Closed cases are deleted by a daily cleanup after the retention period set by the owner (30 days by default). Files are deleted from private storage too. Temporary spam checks expire after 5–60 minutes and are cleared automatically.",
+        "Language and display preferences may be saved on your device. Case Codes and conversations are never saved there by this application.",
+      ].map((s) => (
+        <p key={s}>{t(s)}</p>
+      ))}
+    </main>
+  );
+}
+function StaffLogin({ kind }: { kind: string }) {
   const t = useT();
   const nav = useNavigate();
-  const location = useLocation();
-  const [user, setUser] = useState<{ username: string; role: string } | null>(
-    null,
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  return (
+    <main className="narrow page">
+      <span className="eyebrow">
+        <LockKeyhole size={18} />
+        {t(kind === "owner" ? "Owner workspace" : "Officer workspace")}
+      </span>
+      <h1>{t("Sign in")}</h1>
+      <p>{t("Only owner-created officer accounts can sign in.")}</p>
+      <form
+        className="panel form-stack"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          setBusy(true);
+          setError("");
+          try {
+            const data = Object.fromEntries(new FormData(e.currentTarget));
+            const result = await api(
+              "/" + kind + "/login",
+              { method: "POST", body: JSON.stringify(data) },
+              kind,
+            );
+            nav("/" + kind + (result.must_change_password ? "/password" : ""));
+          } catch (e) {
+            setError((e as Error).message);
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        <label>
+          {t("Username")}
+          <input
+            name="username"
+            required
+            autoComplete="username"
+            maxLength={80}
+          />
+        </label>
+        <label>
+          {t("Password")}
+          <input
+            type="password"
+            name="password"
+            required
+            autoComplete="current-password"
+            maxLength={200}
+          />
+        </label>
+        <label>
+          {t("Authenticator code (if enabled)")}
+          <input
+            name="otp"
+            inputMode="numeric"
+            maxLength={6}
+            autoComplete="one-time-code"
+          />
+        </label>
+        <ErrorBox error={error} />
+        <button className="btn primary" disabled={busy}>
+          {t("Sign in")}
+          <ArrowRight size={18} />
+        </button>
+      </form>
+    </main>
   );
+}
+function PasswordForm({ kind }: { kind: string }) {
+  const t = useT();
+  const nav = useNavigate();
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  return (
+    <div className="narrow page">
+      <h1>{t("Change your temporary password")}</h1>
+      <p>
+        {t(
+          "Use a unique password with at least 16 characters. You will sign in again afterwards.",
+        )}
+      </p>
+      <form
+        className="panel form-stack"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          setBusy(true);
+          try {
+            await api(
+              "/" + kind + "/password",
+              {
+                method: "POST",
+                body: JSON.stringify(
+                  Object.fromEntries(new FormData(e.currentTarget)),
+                ),
+              },
+              kind,
+            );
+            nav("/" + kind + "/login");
+          } catch (e) {
+            setError((e as Error).message);
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        <label>
+          {t("Current password")}
+          <input
+            type="password"
+            name="current_password"
+            required
+            autoComplete="current-password"
+          />
+        </label>
+        <label>
+          {t("New password")}
+          <input
+            type="password"
+            name="new_password"
+            required
+            minLength={16}
+            maxLength={200}
+            autoComplete="new-password"
+          />
+        </label>
+        <ErrorBox error={error} />
+        <button className="btn primary" disabled={busy}>
+          {t("Change password")}
+        </button>
+      </form>
+    </div>
+  );
+}
+function Guard({
+  kind,
+  children,
+}: {
+  kind: string;
+  children: React.ReactNode;
+}) {
+  const t = useT();
+  const nav = useNavigate();
+  const loc = useLocation();
+  const [user, setUser] = useState<any>(null);
   const [error, setError] = useState("");
   useEffect(() => {
-    api("/officer/me")
-      .then(setUser)
+    api("/" + kind + "/me", {}, kind)
+      .then((u) => {
+        setUser(u);
+        if (u.must_change_password && !loc.pathname.endsWith("/password"))
+          nav("/" + kind + "/password");
+      })
       .catch((e) => {
-        if (e instanceof ApiError && e.status === 401) nav("/officer/login");
+        if (e instanceof ApiError && e.status === 401)
+          nav("/" + kind + "/login");
         else setError(e.message);
       });
-  }, [location.pathname]);
+  }, [kind, loc.pathname]);
   if (!user)
     return (
       <main className="container page">
@@ -1140,392 +981,422 @@ function OfficerShell() {
       </main>
     );
   return (
-    <div className="workspace">
-      <aside className="sidebar">
-        <div className="sidebar-label">{t("Investigation workspace")}</div>
-        <nav>
-          {[
-            [LayoutDashboard, "Overview", "/officer"],
-            [FolderOpen, "All reports", "/officer/reports"],
-            [History, "Activity log", "/officer/activity"],
-            [SettingsIcon, "Settings", "/officer/settings"],
-          ].map(([Icon, label, to]: any) => (
-            <NavLink key={to} to={to} end={to === "/officer"}>
-              <Icon size={18} />
-              {t(label)}
-            </NavLink>
-          ))}
-        </nav>
-        <div className="sidebar-bottom">
-          <div className="user-avatar">
-            {user.username.slice(0, 1).toUpperCase()}
-          </div>
-          <strong>{user.username}</strong>
-          <small>
-            {t(user.role === "admin" ? "Administrator" : "Officer")}
-          </small>
+    <div className="workspace container">
+      <div className="workspace-heading">
+        <div>
+          <span className="eyebrow">
+            {t(kind === "owner" ? "Owner workspace" : "Officer workspace")}
+          </span>
+          <span>{user.username}</span>
+        </div>
+        <div className="row wrap">
+          <Link className="btn secondary" to={"/" + kind + "/settings"}>
+            <Settings size={18} />
+            {t("Settings")}
+          </Link>
           <button
+            className="btn secondary"
             onClick={async () => {
               try {
-                await api("/logout/officer", { method: "POST" });
-                nav("/officer/login");
+                await api("/" + kind + "/logout", { method: "POST" }, kind);
+                nav("/" + kind + "/login");
               } catch (e) {
                 setError((e as Error).message);
               }
             }}
           >
-            <LogOut size={17} />
+            <LogOut size={18} />
             {t("Sign out")}
           </button>
-          <ErrorBox error={error} />
         </div>
-      </aside>
-      <div className="workspace-content">
-        <Routes>
-          <Route index element={<Dashboard />} />
-          <Route path="reports" element={<Reports />} />
-          <Route path="reports/:id" element={<ReportDetail officer />} />
-          <Route path="activity" element={<Audit />} />
-          <Route path="settings" element={<Settings role={user.role} />} />
-          <Route path="*" element={<Navigate to="/officer" />} />
-        </Routes>
       </div>
+      <ErrorBox error={error} />
+      {user.must_change_password ? <PasswordForm kind={kind} /> : children}
     </div>
   );
 }
-function ReportTable({ rows }: { rows: ReportRow[] }) {
+function PushButton() {
   const t = useT();
-  return (
-    <div className="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            {["Report ID", "Category", "Location", "Status", "Date"].map(
-              (s) => (
-                <th key={s}>{t(s)}</th>
-              ),
-            )}
-            <th />
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.id}>
-              <td>
-                <Link className="report-id" to={"/officer/reports/" + r.id}>
-                  {r.report_number}
-                </Link>
-              </td>
-              <td>{t(r.category)}</td>
-              <td>{r.location}</td>
-              <td>
-                <Status value={r.status} />
-              </td>
-              <td className="date-cell">{r.incident_date}</td>
-              <td>
-                <Link
-                  aria-label={t("Incident details")}
-                  to={"/officer/reports/" + r.id}
-                >
-                  <ChevronRight size={18} />
-                </Link>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {!rows.length && <div className="empty">{t("No reports found")}</div>}
-    </div>
-  );
-}
-function Dashboard() {
-  const t = useT();
-  const [rows, setRows] = useState<ReportRow[]>([]);
-  const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState("");
-  async function load() {
+  const [enabled, setEnabled] = useState(false);
+  async function enable() {
     try {
-      setRows(await api("/officer/reports"));
-      setLoaded(true);
-      setError("");
+      if (
+        !("Notification" in window) ||
+        !("serviceWorker" in navigator) ||
+        !("PushManager" in window)
+      )
+        throw new Error("Notifications unavailable in this browser");
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted")
+        throw new Error("Allow notifications in browser settings");
+      const config = await api("/public/config");
+      const raw = config.vapid_public_key.replace(/-/g, "+").replace(/_/g, "/");
+      const key = Uint8Array.from(
+        atob(raw + "=".repeat((4 - (raw.length % 4)) % 4)),
+        (c) => c.charCodeAt(0),
+      );
+      const registration = await navigator.serviceWorker.ready;
+      const sub =
+        (await registration.pushManager.getSubscription()) ||
+        (await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: key,
+        }));
+      await api(
+        "/officer/push",
+        { method: "POST", body: JSON.stringify(sub.toJSON()) },
+        "officer",
+      );
+      setEnabled(true);
     } catch (e) {
       setError((e as Error).message);
     }
   }
-  useEffect(() => {
-    load();
-  }, []);
-  const counts = [
-    rows.length,
-    rows.filter((r) => r.status === "Submitted").length,
-    rows.filter((r) =>
-      [
-        "Under Review",
-        "In Progress",
-        "Additional Information Requested",
-      ].includes(r.status),
-    ).length,
-    rows.filter((r) => r.status === "Resolved").length,
-  ];
-  const cats = categories
-    .map((c) => ({
-      name: c,
-      count: rows.filter((r) => r.category === c).length,
-    }))
-    .filter((c) => c.count);
-  const locs = Object.entries(
-    rows.reduce(
-      (a, r) => {
-        const city = r.location.split(",")[0].trim();
-        a[city] = (a[city] || 0) + 1;
-        return a;
-      },
-      {} as Record<string, number>,
-    ),
-  ).sort((a, b) => b[1] - a[1]);
   return (
     <>
-      <div className="workspace-heading">
-        <div>
-          <div className="eyebrow">{t("Secure workspace")}</div>
-          <h1>{t("Report overview")}</h1>
-          <p>{t("Manage reports, review evidence, and follow up securely.")}</p>
-        </div>
-        <button className="btn secondary" onClick={load}>
-          <RefreshCw size={16} />
-          {t("Refresh")}
-        </button>
-      </div>
+      <button className="btn secondary" onClick={enable}>
+        <Bell size={18} />
+        {t(enabled ? "Notifications enabled" : "Enable notifications")}
+      </button>
+      <p className="hint">
+        {t(
+          "Notifications only name the school; they never include message contents.",
+        )}
+      </p>
       <ErrorBox error={error} />
-      <div className="stats">
-        {[
-          "Total reports",
-          "New reports",
-          "Under investigation",
-          "Resolved reports",
-        ].map((s, i) => (
-          <div className="stat" key={s}>
-            <div>
-              <span>{t(s)}</span>
-              {i === 0 ? (
-                <FolderOpen size={18} />
-              ) : i === 3 ? (
-                <CheckCircle2 size={18} />
-              ) : (
-                <Activity size={18} />
-              )}
-            </div>
-            <strong>{loaded ? counts[i] : "—"}</strong>
-            <small>{t("Prototype environment")}</small>
-          </div>
-        ))}
-      </div>
-      <div className="chart-grid">
-        <section className="panel">
-          <h3>{t("Reports by category")}</h3>
-          <div className="bars">
-            {cats.map((c, i) => (
-              <div className="bar-row" key={c.name}>
-                <span>{t(c.name)}</span>
-                <div>
-                  <i
-                    style={{
-                      width:
-                        (100 * c.count) /
-                          Math.max(...cats.map((x) => x.count), 1) +
-                        "%",
-                      background: ["#1b334a", "#237b7c", "#639a93", "#9db8ae"][
-                        i % 4
-                      ],
-                    }}
-                  />
-                </div>
-                <strong>{c.count}</strong>
-              </div>
-            ))}
-            {!cats.length && <p className="empty">{t("No reports yet")}</p>}
-          </div>
-        </section>
-        <section className="panel">
-          <h3>{t("Reports by location")}</h3>
-          <div className="location-chart">
-            {locs.map(([loc, count]) => (
-              <div key={loc}>
-                <span>
-                  <MapPin size={16} />
-                  {loc}
-                </span>
-                <strong>{count}</strong>
-                <div>
-                  <i
-                    style={{
-                      width: (100 * count) / Math.max(rows.length, 1) + "%",
-                    }}
-                  />
-                </div>
-              </div>
-            ))}
-            {!locs.length && <p className="empty">{t("No reports yet")}</p>}
-          </div>
-        </section>
-      </div>
-      <section className="panel table-panel">
-        <div className="panel-heading">
-          <h3>{t("Recent reports")}</h3>
-          <Link to="/officer/reports" className="text-link">
-            {t("View all")}
-            <ArrowRight size={16} />
-          </Link>
-        </div>
-        <ReportTable rows={rows.slice(0, 6)} />
-      </section>
-      <RecentActivity />
     </>
   );
 }
-function RecentActivity() {
+function Officer() {
   const t = useT();
-  const [logs, setLogs] = useState<any[]>([]);
+  const [rows, setRows] = useState<CaseRow[]>([]);
+  const [status, setStatus] = useState("");
+  const [selected, setSelected] = useState("");
+  const [value, setValue] = useState<CaseDetail | null>(null);
   const [error, setError] = useState("");
-  useEffect(() => {
-    api("/officer/audit")
-      .then(setLogs)
-      .catch((e) => setError(e.message));
-  }, []);
-  return (
-    <section className="panel">
-      <div className="panel-heading">
-        <h3>{t("Activity log")}</h3>
-        <Link to="/officer/activity" className="text-link">
-          {t("View all")}
-          <ArrowRight size={16} />
-        </Link>
-      </div>
-      <ErrorBox error={error} />
-      {logs.slice(0, 4).map((a, i) => (
-        <div key={i} className="activity-row">
-          <span className="activity-dot" />
-          <strong>{a.username}</strong>
-          <span>{a.action.replaceAll("_", " ")}</span>
-          <small>{stamp(a.timestamp, t("__locale"))}</small>
-        </div>
-      ))}
-    </section>
-  );
-}
-function Reports() {
-  const t = useT();
-  const [rows, setRows] = useState<ReportRow[]>([]);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-  async function load(params = "") {
-    setLoading(true);
+  const [busy, setBusy] = useState(false);
+  const currentSelection = useRef(selected);
+  currentSelection.current = selected;
+  async function list() {
     try {
-      setRows(await api("/officer/reports" + params));
+      setRows(
+        await api(
+          "/officer/cases?status=" + encodeURIComponent(status),
+          {},
+          "officer",
+        ),
+      );
       setError("");
     } catch (e) {
       setError((e as Error).message);
-    } finally {
-      setLoading(false);
+    }
+  }
+  async function detail() {
+    if (!selected) return;
+    try {
+      const result = await api<CaseDetail>(
+        "/officer/cases/" + selected,
+        {},
+        "officer",
+      );
+      if (currentSelection.current !== selected) return;
+      setValue(result);
+      setError("");
+    } catch (e) {
+      setError((e as Error).message);
     }
   }
   useEffect(() => {
-    load();
-  }, []);
+    list();
+    const id = setInterval(() => {
+      if (!document.hidden) list();
+    }, 12000);
+    return () => clearInterval(id);
+  }, [status]);
+  useEffect(() => {
+    setValue(null);
+    detail();
+    const id = setInterval(() => {
+      if (!document.hidden) detail();
+    }, 12000);
+    return () => clearInterval(id);
+  }, [selected]);
   return (
     <>
-      <div className="workspace-heading">
+      <div className="intro-row">
         <div>
-          <div className="eyebrow">{t("Investigation workspace")}</div>
-          <h1>{t("All reports")}</h1>
+          <h1>{t("Cases")}</h1>
+          <p>{t("Only cases from your assigned schools appear here.")}</p>
         </div>
-        <span className="count">{rows.length}</span>
+        <div>
+          <PushButton />
+        </div>
       </div>
       <ErrorBox error={error} />
-      <form
-        className="panel filters"
-        onSubmit={(e) => {
-          e.preventDefault();
-          const params = new URLSearchParams();
-          new FormData(e.currentTarget).forEach((v, k) => {
-            if (v) params.set(k, String(v));
-          });
-          load("?" + params);
-        }}
-      >
-        <label className="search-field">
-          <span>{t("Search reports")}</span>
-          <div>
-            <Search size={17} />
-            <input
-              name="q"
-              maxLength={200}
-              placeholder={t("Search by ID, description or location")}
-            />
-          </div>
-        </label>
-        <div className="filter-grid">
+      <div className="officer-grid">
+        <aside className="panel case-list">
           <label>
-            {t("Category")}
-            <select name="category">
-              <option value="">{t("All categories")}</option>
-              {categories.map((c) => (
-                <option value={c} key={c}>
-                  {t(c)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            {t("Status")}
-            <select name="status">
+            {t("All statuses")}
+            <select value={status} onChange={(e) => setStatus(e.target.value)}>
               <option value="">{t("All statuses")}</option>
-              {statuses.map((s) => (
+              {["New", "In progress", "Closed"].map((s) => (
                 <option value={s} key={s}>
                   {t(s)}
                 </option>
               ))}
             </select>
           </label>
-          <label>
-            {t("Location")}
-            <input
-              name="location"
-              maxLength={100}
-              placeholder={t("Location contains")}
-            />
-          </label>
-          <label>
-            {t("From date")}
-            <input name="start" type="date" />
-          </label>
-          <label>
-            {t("To date")}
-            <input name="end" type="date" />
-          </label>
-        </div>
-        <div className="inline-actions">
-          <button className="btn primary" disabled={loading}>
-            {t(loading ? "Loading…" : "Apply filters")}
-          </button>
-          <button type="reset" className="btn secondary" onClick={() => load()}>
-            {t("Reset")}
-          </button>
-        </div>
-      </form>
-      <section className="panel table-panel">
-        <ReportTable rows={rows} />
-      </section>
+          {rows.length ? (
+            rows.map((c) => (
+              <button
+                className={"case-card " + (selected === c.id ? "selected" : "")}
+                key={c.id}
+                onClick={() => setSelected(c.id)}
+              >
+                <div className="row between">
+                  <strong>{c.school}</strong>
+                  {c.unanswered && c.status !== "Closed" && (
+                    <span className="new-dot" />
+                  )}
+                </div>
+                <span>
+                  {t(
+                    c.role === "victim"
+                      ? "Victim"
+                      : c.role === "witness"
+                        ? "Witness"
+                        : "Anonymous student",
+                  )}
+                </span>
+                <div className="row between">
+                  <span className={"status " + c.status.replace(" ", "-")}>
+                    {t(c.status)}
+                  </span>
+                  <time>{date(c.created_at, t("__locale"))}</time>
+                </div>
+              </button>
+            ))
+          ) : (
+            <p className="empty">{t("No cases yet")}</p>
+          )}
+        </aside>
+        <section className="panel officer-detail">
+          {value ? (
+            <>
+              <div className="case-header">
+                <div>
+                  <span className="eyebrow">{value.school}</span>
+                  <h2>{t("Anonymous student")}</h2>
+                </div>
+                <label className="status-control">
+                  <span className="sr-only">Status</span>
+                  <select
+                    value={value.status}
+                    disabled={busy}
+                    onChange={async (e) => {
+                      setBusy(true);
+                      try {
+                        await api(
+                          `/officer/cases/${value.id}/status`,
+                          {
+                            method: "PATCH",
+                            body: JSON.stringify({ status: e.target.value }),
+                          },
+                          "officer",
+                        );
+                        await detail();
+                        await list();
+                      } catch (e) {
+                        setError((e as Error).message);
+                      } finally {
+                        setBusy(false);
+                      }
+                    }}
+                  >
+                    {["New", "In progress", "Closed"].map((s) => (
+                      <option value={s} key={s}>
+                        {t(s)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <Conversation
+                value={value}
+                kind="officer"
+                refresh={async () => {
+                  await detail();
+                  await list();
+                }}
+              />
+              <details className="notes">
+                <summary>
+                  {t("Private internal notes")}
+                  <small>{t("Never visible to students")}</small>
+                </summary>
+                {value.notes?.map((n) => (
+                  <div className="note" key={n.id}>
+                    <p>{n.text}</p>
+                    <time>{date(n.created_at, t("__locale"))}</time>
+                  </div>
+                ))}
+                <form
+                  className="form-stack"
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    const f = e.currentTarget;
+                    try {
+                      await api(
+                        `/officer/cases/${value.id}/notes`,
+                        {
+                          method: "POST",
+                          body: JSON.stringify({
+                            text: new FormData(f).get("text"),
+                          }),
+                        },
+                        "officer",
+                      );
+                      f.reset();
+                      await detail();
+                    } catch (e) {
+                      setError((e as Error).message);
+                    }
+                  }}
+                >
+                  <label>
+                    {t("Private internal notes")}
+                    <textarea name="text" maxLength={10000} required rows={3} />
+                  </label>
+                  <button className="btn secondary">{t("Add note")}</button>
+                </form>
+              </details>
+            </>
+          ) : (
+            <div className="empty choose-case">
+              <MessageSquare size={36} />
+              <h2>{t(selected ? "Loading…" : "Choose a case")}</h2>
+            </div>
+          )}
+        </section>
+      </div>
     </>
   );
 }
-function Audit() {
+function StaffSettings({ kind }: { kind: string }) {
   const t = useT();
+  const [secret, setSecret] = useState("");
+  const [enabled, setEnabled] = useState(false);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    api("/" + kind + "/me", {}, kind)
+      .then((u) => setEnabled(u.two_factor))
+      .catch((e) => setError(e.message));
+  }, [kind]);
+  return (
+    <>
+      <Link className="back" to={"/" + kind}>
+        ← {t("Back")}
+      </Link>
+      <h1>{t("Settings")}</h1>
+      <div className="panel form-stack">
+        <h2>{t("Two-factor authentication")}</h2>
+        <ErrorBox error={error} />
+        {enabled ? (
+          <p className="success">{t("Enabled")}</p>
+        ) : !secret ? (
+          <button
+            className="btn secondary"
+            onClick={async () => {
+              try {
+                const result = await api(
+                  "/" + kind + "/2fa/setup",
+                  { method: "POST" },
+                  kind,
+                );
+                setSecret(result.secret);
+              } catch (e) {
+                setError((e as Error).message);
+              }
+            }}
+          >
+            {t("Set up authenticator")}
+          </button>
+        ) : (
+          <>
+            <p>
+              {t(
+                "Add this secret to your authenticator app, save it securely, and enter the 6-digit code.",
+              )}
+            </p>
+            <code className="secret-key">{secret}</code>
+            <form
+              className="form-stack"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                try {
+                  await api(
+                    "/" + kind + "/2fa/enable",
+                    {
+                      method: "POST",
+                      body: JSON.stringify({
+                        code: new FormData(e.currentTarget).get("code"),
+                      }),
+                    },
+                    kind,
+                  );
+                  setEnabled(true);
+                  setSecret("");
+                } catch (e) {
+                  setError((e as Error).message);
+                }
+              }}
+            >
+              <label>
+                {t("Authenticator code (if enabled)")}
+                <input
+                  name="code"
+                  required
+                  pattern="[0-9]{6}"
+                  maxLength={6}
+                  inputMode="numeric"
+                />
+              </label>
+              <button className="btn primary">{t("Enable 2FA")}</button>
+            </form>
+          </>
+        )}
+      </div>
+      <Link className="btn secondary" to={"/" + kind + "/password"}>
+        {t("Change password")}
+      </Link>
+    </>
+  );
+}
+function Owner() {
+  const t = useT();
+  const [tab, setTab] = useState("Schools");
+  const [overview, setOverview] = useState<any>(null);
+  const [officers, setOfficers] = useState<any[]>([]);
   const [logs, setLogs] = useState<any[]>([]);
   const [error, setError] = useState("");
+  const [schoolEdit, setSchoolEdit] = useState<any>(null);
+  const [officerEdit, setOfficerEdit] = useState<any>(null);
+  const [credential, setCredential] = useState<{
+    username: string;
+    password: string;
+  } | null>(null);
+  const [busy, setBusy] = useState(false);
   async function load() {
     try {
-      setLogs(await api("/officer/audit"));
+      const [o, f, l] = await Promise.all([
+        api("/owner/overview", {}, "owner"),
+        api("/owner/officers", {}, "owner"),
+        api("/owner/audit", {}, "owner"),
+      ]);
+      setOverview(o);
+      setOfficers(f);
+      setLogs(l);
       setError("");
     } catch (e) {
       setError((e as Error).message);
@@ -1534,212 +1405,569 @@ function Audit() {
   useEffect(() => {
     load();
   }, []);
+  if (!overview)
+    return (
+      <>
+        <ErrorBox error={error} />
+        {t("Loading…")}
+      </>
+    );
   return (
     <>
-      <div className="workspace-heading">
+      <h1>{t("Owner workspace")}</h1>
+      <p>
+        {t(
+          "You can manage schools and accounts. Message contents are not available in this area.",
+        )}
+      </p>
+      <div className="stats">
         <div>
-          <h1>{t("Activity log")}</h1>
-          <p>{t("Refresh to see the latest activity.")}</p>
+          <span>{t("Schools")}</span>
+          <strong>{overview.schools.length}</strong>
         </div>
-        <button className="btn secondary" onClick={load}>
-          <RefreshCw size={16} />
-          {t("Refresh")}
-        </button>
-      </div>
-      <ErrorBox error={error} />
-      <div className="panel table-panel table-wrap">
-        <table>
-          <thead>
-            <tr>
-              {["Officer", "Action", "Report ID", "Time"].map((x) => (
-                <th key={x}>{t(x)}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {logs.map((l, i) => (
-              <tr key={i}>
-                <td>{l.username}</td>
-                <td>{l.action.replaceAll("_", " ")}</td>
-                <td>
-                  {l.report_id ? (
-                    <Link to={"/officer/reports/" + l.report_id}>
-                      {l.report_id.slice(0, 8)}
-                      <ArrowUpRight size={13} />
-                    </Link>
-                  ) : (
-                    "—"
-                  )}
-                </td>
-                <td>{stamp(l.timestamp, t("__locale"))}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {!logs.length && <div className="empty">{t("No activity yet")}</div>}
-      </div>
-    </>
-  );
-}
-function Settings({ role }: { role: string }) {
-  const t = useT();
-  const nav = useNavigate();
-  const [config, setConfig] = useState<any>(null);
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-  useEffect(() => {
-    if (role === "admin")
-      api("/admin/settings")
-        .then(setConfig)
-        .catch((e) => setError(e.message));
-  }, [role]);
-  return (
-    <>
-      <div className="workspace-heading">
         <div>
-          <h1>{t("Settings")}</h1>
-          <p>{t("Security and session settings")}</p>
+          <span>{t("Officers")}</span>
+          <strong>{overview.officers}</strong>
+        </div>
+        <div>
+          <span>{t("Cases")}</span>
+          <strong>
+            {overview.schools.reduce(
+              (n: number, s: School) => n + (s.cases || 0),
+              0,
+            )}
+          </strong>
+        </div>
+        <div>
+          <span>{t("Unanswered")}</span>
+          <strong>
+            {overview.schools.reduce(
+              (n: number, s: School) => n + (s.unanswered || 0),
+              0,
+            )}
+          </strong>
         </div>
       </div>
-      <ErrorBox error={error} />
-      <div className="chart-grid">
-        <section className="panel">
-          <h3>{t("Change password")}</h3>
-          <form
-            onSubmit={async (e) => {
-              e.preventDefault();
-              setBusy(true);
-              try {
-                await api("/officer/password", {
-                  method: "POST",
-                  body: JSON.stringify(
-                    Object.fromEntries(new FormData(e.currentTarget)),
-                  ),
-                });
-                nav("/officer/login");
-              } catch (e) {
-                setError((e as Error).message);
-              } finally {
-                setBusy(false);
-              }
+      <nav className="tabs">
+        {["Schools", "Officers", "Audit log", "Settings"].map((s) => (
+          <button
+            className={tab === s ? "active" : ""}
+            key={s}
+            onClick={() => {
+              setTab(s);
+              setSchoolEdit(null);
+              setOfficerEdit(null);
             }}
           >
-            <label>
-              {t("Current password")}
-              <input
-                name="current_password"
-                type="password"
-                required
-                maxLength={200}
-                autoComplete="current-password"
-              />
-            </label>
-            <label>
-              {t("New password")}
-              <input
-                name="new_password"
-                type="password"
-                required
-                minLength={12}
-                maxLength={200}
-                autoComplete="new-password"
-                placeholder={t("At least 12 characters")}
-              />
-            </label>
-            <button className="btn primary" disabled={busy}>
-              {t("Change password")}
-            </button>
-          </form>
-        </section>
-        <section className="panel">
-          <h3>{t("System configuration")}</h3>
-          {role !== "admin" ? (
-            <p>{t("Access is restricted to administrators.")}</p>
-          ) : !config ? (
-            <p>{t("Loading…")}</p>
-          ) : (
-            <dl className="config">
-              {[
-                ["Environment", t("University demonstration")],
-                ["Encryption", config.encryption],
-                ["Maximum file size", config.max_file_mb + " MB"],
-                ["Session minutes", config.session_minutes],
-                [
-                  "Secure cookies",
-                  t(config.secure_cookies ? "On" : "Off (local HTTP demo)"),
-                ],
-              ].map(([k, v]) => (
-                <div key={k}>
-                  <dt>{t(k)}</dt>
-                  <dd>{v}</dd>
-                </div>
-              ))}
-            </dl>
+            {t(s)}
+          </button>
+        ))}
+      </nav>
+      <ErrorBox error={error} />
+      {tab === "Schools" && (
+        <>
+          <button
+            className="btn primary"
+            onClick={() =>
+              setSchoolEdit({
+                name: "",
+                number: "",
+                district: "",
+                active: false,
+              })
+            }
+          >
+            <Plus size={18} />
+            {t("Add school")}
+          </button>
+          {schoolEdit && (
+            <form
+              key={schoolEdit.id || "new-school"}
+              className="panel form-stack"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setBusy(true);
+                try {
+                  const data = Object.fromEntries(
+                    new FormData(e.currentTarget),
+                  );
+                  await api(
+                    "/owner/schools" +
+                      (schoolEdit.id ? "/" + schoolEdit.id : ""),
+                    {
+                      method: schoolEdit.id ? "PATCH" : "POST",
+                      body: JSON.stringify({
+                        ...data,
+                        active: data.active === "on",
+                      }),
+                    },
+                    "owner",
+                  );
+                  setSchoolEdit(null);
+                  await load();
+                } catch (e) {
+                  setError((e as Error).message);
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              <h2>{t(schoolEdit.id ? "Edit" : "Add school")}</h2>
+              <label>
+                {t("School name")}
+                <input
+                  name="name"
+                  required
+                  minLength={2}
+                  maxLength={160}
+                  defaultValue={schoolEdit.name}
+                />
+              </label>
+              <div className="two-col">
+                <label>
+                  {t("Number")}
+                  <input
+                    name="number"
+                    required
+                    maxLength={30}
+                    defaultValue={schoolEdit.number}
+                  />
+                </label>
+                <label>
+                  {t("District (optional)")}
+                  <input
+                    name="district"
+                    maxLength={100}
+                    defaultValue={schoolEdit.district}
+                  />
+                </label>
+              </div>
+              <label className="checkbox">
+                <input
+                  type="checkbox"
+                  name="active"
+                  defaultChecked={schoolEdit.active}
+                />
+                {t("Active")}
+              </label>
+              <div className="row wrap">
+                <button className="btn primary" disabled={busy}>
+                  {t("Save")}
+                </button>
+                <button
+                  type="button"
+                  className="btn secondary"
+                  onClick={() => setSchoolEdit(null)}
+                >
+                  {t("Cancel")}
+                </button>
+              </div>
+            </form>
           )}
-        </section>
-      </div>
+          <div className="school-cards">
+            {overview.schools.map((s: School) => (
+              <article className="panel" key={s.id}>
+                <div className="row between">
+                  <h2>{s.name}</h2>
+                  <span
+                    className={
+                      "status " + (s.active ? "In-progress" : "Closed")
+                    }
+                  >
+                    {t(s.active ? "Active" : "Inactive")}
+                  </span>
+                </div>
+                <div className="school-totals">
+                  <span>
+                    {t("Officers")}: {s.officers}
+                  </span>
+                  <span>
+                    {t("Cases")}: {s.cases}
+                  </span>
+                  <span>
+                    {t("New")}: {s.new}
+                  </span>
+                  <span>
+                    {t("Unanswered")}: {s.unanswered}
+                  </span>
+                </div>
+                <button
+                  className="btn secondary"
+                  onClick={() => setSchoolEdit(s)}
+                >
+                  {t("Edit")}
+                </button>
+              </article>
+            ))}
+          </div>
+          {!overview.schools.length && (
+            <p className="empty">
+              {t("No schools yet. Add your first partner school.")}
+            </p>
+          )}
+        </>
+      )}
+      {tab === "Officers" && (
+        <>
+          <button
+            className="btn primary"
+            onClick={() =>
+              setOfficerEdit({
+                name: "",
+                username: "",
+                school_ids: [],
+                active: true,
+              })
+            }
+          >
+            <Plus size={18} />
+            {t("Create officer")}
+          </button>
+          {officerEdit && (
+            <form
+              key={officerEdit.id || "new-officer"}
+              className="panel form-stack"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setBusy(true);
+                try {
+                  const form = new FormData(e.currentTarget);
+                  const data = {
+                    name: form.get("name"),
+                    username: form.get("username"),
+                    school_ids: form.getAll("school_ids"),
+                    active: form.get("active") === "on",
+                  };
+                  const result = await api(
+                    "/owner/officers" +
+                      (officerEdit.id ? "/" + officerEdit.id : ""),
+                    {
+                      method: officerEdit.id ? "PATCH" : "POST",
+                      body: JSON.stringify(data),
+                    },
+                    "owner",
+                  );
+                  if (result.temporary_password)
+                    setCredential({
+                      username: String(data.username),
+                      password: result.temporary_password,
+                    });
+                  setOfficerEdit(null);
+                  await load();
+                } catch (e) {
+                  setError((e as Error).message);
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              <h2>{t(officerEdit.id ? "Edit" : "Create officer")}</h2>
+              <label>
+                {t("Name (owner only)")}
+                <input
+                  name="name"
+                  required
+                  minLength={2}
+                  maxLength={160}
+                  defaultValue={officerEdit.name}
+                />
+              </label>
+              {!officerEdit.id && (
+                <label>
+                  {t("Username")}
+                  <input
+                    name="username"
+                    required
+                    minLength={3}
+                    maxLength={80}
+                    pattern="[a-zA-Z0-9._-]+"
+                    defaultValue={officerEdit.username}
+                    autoComplete="off"
+                  />
+                </label>
+              )}
+              <fieldset>
+                <legend>{t("Assigned schools")}</legend>
+                {overview.schools.map((s: School) => (
+                  <label className="checkbox" key={s.id}>
+                    <input
+                      type="checkbox"
+                      name="school_ids"
+                      value={s.id}
+                      defaultChecked={officerEdit.school_ids.includes(s.id)}
+                    />
+                    {s.name}
+                  </label>
+                ))}
+              </fieldset>
+              <label className="checkbox">
+                <input
+                  type="checkbox"
+                  name="active"
+                  defaultChecked={officerEdit.active}
+                />
+                {t("Active")}
+              </label>
+              <div className="row wrap">
+                <button className="btn primary" disabled={busy}>
+                  {t("Save")}
+                </button>
+                <button
+                  type="button"
+                  className="btn secondary"
+                  onClick={() => setOfficerEdit(null)}
+                >
+                  {t("Cancel")}
+                </button>
+              </div>
+            </form>
+          )}
+          <div className="school-cards">
+            {officers.map((o) => (
+              <article className="panel" key={o.id}>
+                <div className="row between">
+                  <h2>{o.name}</h2>
+                  <span className="status">
+                    {t(o.active ? "Active" : "Inactive")}
+                  </span>
+                </div>
+                <p>{o.username}</p>
+                <p>
+                  {overview.schools
+                    .filter((s: School) => o.school_ids.includes(s.id))
+                    .map((s: School) => s.name)
+                    .join(" · ")}
+                </p>
+                {o.must_change_password && (
+                  <p className="hint">
+                    {t("First sign-in password change required")}
+                  </p>
+                )}
+                <div className="row wrap">
+                  <button
+                    className="btn secondary"
+                    onClick={() => setOfficerEdit(o)}
+                  >
+                    {t("Edit")}
+                  </button>
+                  <button
+                    className="btn secondary"
+                    onClick={async () => {
+                      try {
+                        const result = await api(
+                          "/owner/officers/" + o.id + "/reset",
+                          { method: "POST" },
+                          "owner",
+                        );
+                        setCredential({
+                          username: o.username,
+                          password: result.temporary_password,
+                        });
+                        await load();
+                      } catch (e) {
+                        setError((e as Error).message);
+                      }
+                    }}
+                  >
+                    {t("Reset password")}
+                  </button>
+                  <button
+                    className="btn danger"
+                    onClick={async () => {
+                      if (
+                        !confirm(
+                          t(
+                            "Delete this officer account? This cannot be undone.",
+                          ),
+                        )
+                      )
+                        return;
+                      try {
+                        await api(
+                          "/owner/officers/" + o.id,
+                          { method: "DELETE" },
+                          "owner",
+                        );
+                        await load();
+                      } catch (e) {
+                        setError((e as Error).message);
+                      }
+                    }}
+                  >
+                    {t("Delete officer")}
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+          {!officers.length && <p className="empty">{t("No officers yet")}</p>}
+        </>
+      )}
+      {tab === "Audit log" && (
+        <div className="panel audit-list">
+          {logs.map((l, i) => (
+            <article key={i}>
+              <strong>{l.actor}</strong>
+              <span>{l.action}</span>
+              <time>{date(l.created_at, t("__locale"))}</time>
+            </article>
+          ))}
+          {!logs.length && <p>{t("No activity yet")}</p>}
+        </div>
+      )}
+      {tab === "Settings" && (
+        <form
+          className="panel form-stack"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            try {
+              await api(
+                "/owner/retention",
+                {
+                  method: "PATCH",
+                  body: JSON.stringify({
+                    days: Number(new FormData(e.currentTarget).get("days")),
+                  }),
+                },
+                "owner",
+              );
+              await load();
+            } catch (e) {
+              setError((e as Error).message);
+            }
+          }}
+        >
+          <label>
+            {t("Retention for closed cases (days)")}
+            <input
+              name="days"
+              type="number"
+              min={1}
+              max={3650}
+              defaultValue={overview.retention_days}
+              required
+            />
+          </label>
+          <button className="btn primary">{t("Save")}</button>
+          <Link to="/owner/settings" className="btn secondary">
+            {t("Two-factor authentication")}
+          </Link>
+        </form>
+      )}
+      {credential && (
+        <div className="modal-backdrop">
+          <section
+            className="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label={t("Temporary password")}
+          >
+            <h2>{t("Temporary password")}</h2>
+            <p>
+              {t(
+                "Save it now and share it with the officer securely. It is shown only once.",
+              )}
+            </p>
+            <p>{credential.username}</p>
+            <code className="secret-key">{credential.password}</code>
+            <button
+              className="btn secondary"
+              onClick={() =>
+                navigator.clipboard
+                  .writeText(credential.username + "\n" + credential.password)
+                  .catch(() => setError("Request failed"))
+              }
+            >
+              <Copy size={18} />
+              {t("Copy code")}
+            </button>
+            <button className="btn primary" onClick={() => setCredential(null)}>
+              {t("Close")}
+            </button>
+          </section>
+        </div>
+      )}
     </>
   );
 }
-function Scroll() {
-  const { pathname, hash } = useLocation();
+function AppRoutes() {
+  const location = useLocation();
+  const publicPage =
+    !location.pathname.startsWith("/officer") &&
+    !location.pathname.startsWith("/owner");
   useEffect(() => {
-    if (hash)
-      setTimeout(
-        () =>
-          document
-            .getElementById(hash.slice(1))
-            ?.scrollIntoView({ behavior: "smooth" }),
-        50,
-      );
-    else window.scrollTo(0, 0);
-  }, [pathname, hash]);
-  return null;
+    window.scrollTo(0, 0);
+  }, [location.pathname]);
+  return (
+    <>
+      <Header />
+      {publicPage && <Emergency />}
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/write" element={<Write />} />
+        <Route path="/report" element={<Navigate to="/write" replace />} />
+        <Route path="/saved" element={<Saved />} />
+        <Route path="/case" element={<StudentCase />} />
+        <Route path="/track" element={<Navigate to="/case" replace />} />
+        <Route path="/privacy" element={<Privacy />} />
+        <Route path="/officer/login" element={<StaffLogin kind="officer" />} />
+        <Route path="/owner/login" element={<StaffLogin kind="owner" />} />
+        {["officer", "owner"].map((kind) => (
+          <React.Fragment key={kind}>
+            <Route
+              path={"/" + kind}
+              element={
+                <Guard kind={kind}>
+                  {kind === "owner" ? <Owner /> : <Officer />}
+                </Guard>
+              }
+            />
+            <Route
+              path={"/" + kind + "/password"}
+              element={
+                <Guard kind={kind}>
+                  <PasswordForm kind={kind} />
+                </Guard>
+              }
+            />
+            <Route
+              path={"/" + kind + "/settings"}
+              element={
+                <Guard kind={kind}>
+                  <StaffSettings kind={kind} />
+                </Guard>
+              }
+            />
+          </React.Fragment>
+        ))}
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+      <Footer />
+    </>
+  );
 }
 function App() {
-  const [lang, setLang] = useState<Lang>(
-    () => (localStorage.getItem("aw_language") as Lang) || "en",
-  );
+  const [lang, setLang] = useState<Lang>(() => {
+    const l = localStorage.getItem("aw_language");
+    return l === "ru" || l === "kk" ? l : "en";
+  });
+  const [school, setSchool] = useState<School | null>(null);
+  const [code, setCode] = useState("");
   useEffect(() => {
-    localStorage.setItem("aw_language", lang);
     document.documentElement.lang = lang;
+    localStorage.setItem("aw_language", lang);
   }, [lang]);
+  useEffect(() => {
+    if ("serviceWorker" in navigator)
+      navigator.serviceWorker.register("/sw.js").catch(() => {});
+  }, []);
   return (
     <Locale.Provider value={{ lang, setLang }}>
-      <BrowserRouter>
-        <Scroll />
-        <div className="prototype-banner">
-          <span />
-          <span>
-            {lang === "en"
-              ? "INDEPENDENT UNIVERSITY PROTOTYPE"
-              : lang === "ru"
-                ? "НЕЗАВИСИМЫЙ УНИВЕРСИТЕТСКИЙ ПРОТОТИП"
-                : "ТӘУЕЛСІЗ УНИВЕРСИТЕТТІК ПРОТОТИП"}
-          </span>
-          <span className="banner-country">KAZAKHSTAN</span>
-        </div>
-        <Header />
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/report" element={<Submit />} />
-          <Route path="/confirmation" element={<Confirmation />} />
-          <Route path="/track" element={<Access />} />
-          <Route path="/inbox" element={<ReportDetail />} />
-          <Route path="/officer/login" element={<Access officer />} />
-          <Route path="/officer/*" element={<OfficerShell />} />
-          <Route
-            path="*"
-            element={
-              <main className="container page">
-                <h1>404</h1>
-                <Link to="/">Home</Link>
-              </main>
-            }
-          />
-        </Routes>
-        <Footer />
-      </BrowserRouter>
+      <StudentContext.Provider value={{ school, setSchool, code, setCode }}>
+        <BrowserRouter>
+          <AppRoutes />
+        </BrowserRouter>
+      </StudentContext.Provider>
     </Locale.Provider>
   );
 }

@@ -21,3 +21,6 @@ CLOUD-ДОСТУПЫ.txt
 *.log
 
 .DS_Store
+.env*
+
+SCHOOL-OWNER-ДОСТУПЫ.txt

@@ -1,44 +1,69 @@
-import os, base64, secrets, tempfile
+import os, base64, secrets, tempfile, types
 from pathlib import Path
 import pytest
 
-scratch = tempfile.TemporaryDirectory(prefix="witness-test-")
-os.environ.setdefault(
-    "ENCRYPTION_KEY", base64.b64encode(secrets.token_bytes(32)).decode()
-)
-os.environ.setdefault("TOKEN_PEPPER", secrets.token_urlsafe(40))
+scratch = tempfile.TemporaryDirectory(prefix="school-tests-")
 os.environ["DATABASE_URL"] = os.environ.get(
-    "TEST_DATABASE_URL", "sqlite:///" + str(Path(scratch.name) / "test.db")
+    "TEST_DATABASE_URL", "sqlite:///" + str(Path(scratch.name) / "tests.db")
 )
-os.environ["STORAGE_DIR"] = str(Path(scratch.name) / "evidence")
+os.environ["ENCRYPTION_KEY"] = base64.b64encode(secrets.token_bytes(32)).decode()
+os.environ["TOKEN_PEPPER"] = secrets.token_urlsafe(40)
 os.environ["SECURE_COOKIES"] = "false"
 os.environ["ALLOWED_ORIGIN"] = "http://testserver"
 from fastapi.testclient import TestClient
 from app.db import Base, engine, SessionLocal
-from app.models import User
+from app.models import Officer, School, OfficerSchool, SchoolSettings
 from app.security import passwords
 from app.main import app
 
-PASSWORD = "A-test-password-only-2026!"
+PASSWORD = "Test-only-strong-password-2026"
+HASH = passwords.hash(PASSWORD)
 
 
 @pytest.fixture(autouse=True)
-def reset():
+def database():
     Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
     with SessionLocal() as db:
         db.add_all(
             [
-                User(
-                    username="admin",
-                    role="admin",
-                    password_hash=passwords.hash(PASSWORD),
+                School(id="A", name="School A", number="1", active=True),
+                School(id="B", name="School B", number="2", active=True),
+                School(id="C", name="Inactive school", number="3", active=False),
+            ]
+        )
+        db.add_all(
+            [
+                Officer(
+                    id="owner",
+                    name="Owner",
+                    username="owner",
+                    password_hash=HASH,
+                    role="owner",
+                    must_change_password=False,
                 ),
-                User(
-                    username="officer",
-                    role="officer",
-                    password_hash=passwords.hash(PASSWORD),
+                Officer(
+                    id="officer-a",
+                    name="Private Officer A",
+                    username="officer.a",
+                    password_hash=HASH,
+                    must_change_password=False,
                 ),
+                Officer(
+                    id="officer-b",
+                    name="Private Officer B",
+                    username="officer.b",
+                    password_hash=HASH,
+                    must_change_password=False,
+                ),
+            ]
+        )
+        db.flush()
+        db.add_all(
+            [
+                OfficerSchool(officer_id="officer-a", school_id="A"),
+                OfficerSchool(officer_id="officer-b", school_id="B"),
+                SchoolSettings(id=1, retention_days=30),
             ]
         )
         db.commit()
@@ -52,21 +77,23 @@ def client():
 
 
 @pytest.fixture
-def payload():
-    return {
-        "category": "Theft",
-        "description": "A fictional bicycle was taken from a shared courtyard.",
-        "location": "Almaty, Bostandyk district",
-        "incident_date": "2026-01-01",
-        "incident_time": "12:30",
-    }
+def blobs(monkeypatch):
+    from vercel.blob import sync
 
+    files = {}
 
-def csrf(c, kind):
-    return {"X-CSRF-Token": c.cookies.get("aw_csrf_" + kind, "")}
+    def put(name, data, **kwargs):
+        assert kwargs["access"] == "private"
+        assert name.startswith("school/") and name.endswith(".enc")
+        url = "https://test.private.blob.vercel-storage.com/" + name
+        files[url] = data
+        return types.SimpleNamespace(url=url)
 
+    def get(url, **kwargs):
+        assert kwargs["access"] == "private"
+        return types.SimpleNamespace(body=files[url])
 
-def sign_in(c, username="officer"):
-    return c.post(
-        "/api/officer/login", json={"username": username, "password": PASSWORD}
-    )
+    monkeypatch.setattr(sync, "put_blob", put)
+    monkeypatch.setattr(sync, "get_blob", get)
+    monkeypatch.setattr(sync, "delete_blob", lambda path: files.pop(path, None))
+    return files

@@ -13,9 +13,7 @@
       "src": "api/index.py",
       "use": "@vercel/python",
       "config": {
-        "includeFiles": [
-          "backend/app/**"
-        ]
+        "includeFiles": ["backend/app/**"]
       }
     }
   ],
@@ -39,11 +37,29 @@
       "dest": "/frontend/assets/$1"
     },
     {
+      "src": "/(sw.js|manifest.webmanifest)",
+      "dest": "/frontend/$1",
+      "headers": {
+        "Cache-Control": "no-cache",
+        "Service-Worker-Allowed": "/"
+      }
+    },
+    {
+      "src": "/icons/(.*)",
+      "dest": "/frontend/icons/$1"
+    },
+    {
       "handle": "filesystem"
     },
     {
       "src": "/(.*)",
       "dest": "/frontend/index.html"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/maintenance",
+      "schedule": "15 3 * * *"
     }
   ]
 }
