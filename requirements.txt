@@ -1,1 +1,12 @@
--r backend/requirements.txt
+# Flat dependency list for the Vercel Python builder.
+fastapi==0.121.0
+uvicorn[standard]==0.38.0
+SQLAlchemy==2.0.44
+psycopg[binary]==3.2.12
+alembic==1.17.1
+cryptography==46.0.3
+argon2-cffi==25.1.0
+python-multipart==0.0.22
+pydantic-settings==2.11.0
+pytest==8.4.2
+httpx==0.28.1
