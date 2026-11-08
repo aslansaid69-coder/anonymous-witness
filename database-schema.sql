@@ -1,7 +1,48 @@
--- PostgreSQL schema generated from SQLAlchemy metadata. Apply migrations using Alembic.
+-- School Edition PostgreSQL schema; migrations remain the deployment authority.
 
 
-CREATE TABLE rate_buckets (
+CREATE TABLE audit_log (
+	id VARCHAR(36) NOT NULL, 
+	actor VARCHAR(80) NOT NULL, 
+	action VARCHAR(60) NOT NULL, 
+	target VARCHAR(80) NOT NULL, 
+	created_at TIMESTAMP WITH TIME ZONE NOT NULL, 
+	PRIMARY KEY (id)
+)
+
+;
+
+CREATE INDEX ix_audit_log_created_at ON audit_log (created_at);
+
+
+CREATE TABLE blob_deletions (
+	pathname TEXT NOT NULL, 
+	PRIMARY KEY (pathname)
+)
+
+;
+
+
+CREATE TABLE officers (
+	id VARCHAR(36) NOT NULL, 
+	name VARCHAR(160) NOT NULL, 
+	username VARCHAR(80) NOT NULL, 
+	password_hash TEXT NOT NULL, 
+	role VARCHAR(12) NOT NULL, 
+	must_change_password BOOLEAN NOT NULL, 
+	active BOOLEAN NOT NULL, 
+	totp_secret TEXT, 
+	last_totp_step INTEGER NOT NULL, 
+	created_at TIMESTAMP WITH TIME ZONE NOT NULL, 
+	PRIMARY KEY (id), 
+	CHECK (role IN ('owner','officer')), 
+	UNIQUE (username)
+)
+
+;
+
+
+CREATE TABLE rate_limits (
 	key VARCHAR(64) NOT NULL, 
 	count INTEGER NOT NULL, 
 	expires_at TIMESTAMP WITH TIME ZONE NOT NULL, 
@@ -10,163 +51,154 @@ CREATE TABLE rate_buckets (
 
 ;
 
-CREATE INDEX ix_rate_buckets_expires_at ON rate_buckets (expires_at);
+CREATE INDEX ix_rate_limits_expires_at ON rate_limits (expires_at);
 
 
-CREATE TABLE reports (
+CREATE TABLE school_settings (
+	id INTEGER NOT NULL, 
+	retention_days INTEGER NOT NULL, 
+	PRIMARY KEY (id), 
+	CHECK (retention_days >= 1 AND retention_days <= 3650)
+)
+
+;
+
+
+CREATE TABLE schools (
 	id VARCHAR(36) NOT NULL, 
-	report_number VARCHAR(40) NOT NULL, 
-	category VARCHAR(50) NOT NULL, 
-	encrypted_description TEXT NOT NULL, 
-	encrypted_location TEXT NOT NULL, 
-	incident_date DATE NOT NULL, 
-	incident_time TIME WITHOUT TIME ZONE NOT NULL, 
-	status VARCHAR(60) NOT NULL, 
-	access_token_hash VARCHAR(64) NOT NULL, 
+	name VARCHAR(160) NOT NULL, 
+	number VARCHAR(30) NOT NULL, 
+	district VARCHAR(100) NOT NULL, 
+	active BOOLEAN NOT NULL, 
+	PRIMARY KEY (id)
+)
+
+;
+
+CREATE INDEX ix_schools_active ON schools (active);
+
+
+CREATE TABLE cases (
+	id VARCHAR(36) NOT NULL, 
+	school_id VARCHAR(36) NOT NULL, 
+	case_code_hash VARCHAR(64) NOT NULL, 
+	role VARCHAR(10), 
+	status VARCHAR(20) NOT NULL, 
 	created_at TIMESTAMP WITH TIME ZONE NOT NULL, 
 	updated_at TIMESTAMP WITH TIME ZONE NOT NULL, 
+	closed_at TIMESTAMP WITH TIME ZONE, 
+	unanswered BOOLEAN NOT NULL, 
 	PRIMARY KEY (id), 
-	CHECK (status IN ('Submitted','Under Review','Additional Information Requested','In Progress','Resolved','Rejected')), 
-	CHECK (category IN ('Theft','Fraud','Violence','Corruption','Cybercrime','Drug-related activity','Suspicious activity','Other')), 
-	UNIQUE (report_number)
+	CHECK (status IN ('New','In progress','Closed')), 
+	CHECK (role IS NULL OR role IN ('victim','witness')), 
+	FOREIGN KEY(school_id) REFERENCES schools (id), 
+	UNIQUE (case_code_hash)
 )
 
 ;
 
-CREATE INDEX ix_reports_incident_date ON reports (incident_date);
+CREATE INDEX ix_cases_closed_at ON cases (closed_at);
 
-CREATE INDEX ix_reports_category ON reports (category);
+CREATE INDEX ix_cases_created_at ON cases (created_at);
 
-CREATE INDEX ix_reports_status ON reports (status);
+CREATE INDEX ix_cases_school_id ON cases (school_id);
 
-CREATE INDEX ix_reports_created_at ON reports (created_at);
+CREATE INDEX ix_cases_status ON cases (status);
+
+CREATE INDEX ix_cases_unanswered ON cases (unanswered);
 
 
-CREATE TABLE submission_uploads (
+CREATE TABLE notifications (
 	id VARCHAR(36) NOT NULL, 
-	token_hash VARCHAR(64) NOT NULL, 
-	content_type VARCHAR(200) NOT NULL, 
-	total_bytes INTEGER NOT NULL, 
+	school_id VARCHAR(36) NOT NULL, 
+	officer_id VARCHAR(36) NOT NULL, 
+	created_at TIMESTAMP WITH TIME ZONE NOT NULL, 
+	delivered_at TIMESTAMP WITH TIME ZONE, 
+	attempts INTEGER NOT NULL, 
+	PRIMARY KEY (id), 
+	FOREIGN KEY(school_id) REFERENCES schools (id), 
+	FOREIGN KEY(officer_id) REFERENCES officers (id) ON DELETE CASCADE
+)
+
+;
+
+CREATE INDEX ix_notifications_officer_id ON notifications (officer_id);
+
+
+CREATE TABLE officer_schools (
+	officer_id VARCHAR(36) NOT NULL, 
+	school_id VARCHAR(36) NOT NULL, 
+	PRIMARY KEY (officer_id, school_id), 
+	FOREIGN KEY(officer_id) REFERENCES officers (id) ON DELETE CASCADE, 
+	FOREIGN KEY(school_id) REFERENCES schools (id)
+)
+
+;
+
+
+CREATE TABLE push_subscriptions (
+	id VARCHAR(36) NOT NULL, 
+	officer_id VARCHAR(36) NOT NULL, 
+	endpoint_hash VARCHAR(64) NOT NULL, 
+	encrypted_subscription TEXT NOT NULL, 
+	PRIMARY KEY (id), 
+	FOREIGN KEY(officer_id) REFERENCES officers (id) ON DELETE CASCADE, 
+	UNIQUE (endpoint_hash)
+)
+
+;
+
+CREATE INDEX ix_push_subscriptions_officer_id ON push_subscriptions (officer_id);
+
+
+CREATE TABLE staff_sessions (
+	id_hash VARCHAR(64) NOT NULL, 
+	officer_id VARCHAR(36) NOT NULL, 
+	csrf_hash VARCHAR(64) NOT NULL, 
+	pending_totp TEXT, 
 	expires_at TIMESTAMP WITH TIME ZONE NOT NULL, 
-	PRIMARY KEY (id), 
-	CHECK (total_bytes > 0 AND total_bytes <= 54525952)
+	PRIMARY KEY (id_hash), 
+	FOREIGN KEY(officer_id) REFERENCES officers (id) ON DELETE CASCADE
 )
 
 ;
 
-CREATE INDEX ix_submission_uploads_expires_at ON submission_uploads (expires_at);
+CREATE INDEX ix_staff_sessions_expires_at ON staff_sessions (expires_at);
 
-
-CREATE TABLE users (
-	id VARCHAR(36) NOT NULL, 
-	username VARCHAR(80) NOT NULL, 
-	password_hash TEXT NOT NULL, 
-	role VARCHAR(20) NOT NULL, 
-	created_at TIMESTAMP WITH TIME ZONE NOT NULL, 
-	PRIMARY KEY (id), 
-	CHECK (role IN ('officer','admin')), 
-	UNIQUE (username)
-)
-
-;
-
-
-CREATE TABLE audit_logs (
-	id VARCHAR(36) NOT NULL, 
-	user_id VARCHAR(36) NOT NULL, 
-	action VARCHAR(80) NOT NULL, 
-	report_id VARCHAR(36), 
-	timestamp TIMESTAMP WITH TIME ZONE NOT NULL, 
-	PRIMARY KEY (id), 
-	FOREIGN KEY(user_id) REFERENCES users (id), 
-	FOREIGN KEY(report_id) REFERENCES reports (id)
-)
-
-;
-
-CREATE INDEX ix_audit_logs_timestamp ON audit_logs (timestamp);
-
-CREATE INDEX ix_audit_logs_user_id ON audit_logs (user_id);
-
-
-CREATE TABLE evidence (
-	id VARCHAR(36) NOT NULL, 
-	report_id VARCHAR(36) NOT NULL, 
-	original_filename TEXT NOT NULL, 
-	stored_filename VARCHAR(80) NOT NULL, 
-	mime_type VARCHAR(80) NOT NULL, 
-	file_size INTEGER NOT NULL, 
-	file_hash VARCHAR(64) NOT NULL, 
-	encrypted_content BYTEA, 
-	created_at TIMESTAMP WITH TIME ZONE NOT NULL, 
-	PRIMARY KEY (id), 
-	FOREIGN KEY(report_id) REFERENCES reports (id), 
-	UNIQUE (stored_filename)
-)
-
-;
-
-CREATE INDEX ix_evidence_report_id ON evidence (report_id);
+CREATE INDEX ix_staff_sessions_officer_id ON staff_sessions (officer_id);
 
 
 CREATE TABLE messages (
 	id VARCHAR(36) NOT NULL, 
-	report_id VARCHAR(36) NOT NULL, 
-	sender_type VARCHAR(20) NOT NULL, 
-	encrypted_message TEXT NOT NULL, 
+	case_id VARCHAR(36) NOT NULL, 
+	sender VARCHAR(10) NOT NULL, 
+	body TEXT NOT NULL, 
+	attachment TEXT, 
+	mime_type VARCHAR(40), 
+	attachment_size INTEGER, 
+	attachment_hash VARCHAR(64), 
 	created_at TIMESTAMP WITH TIME ZONE NOT NULL, 
-	read_at TIMESTAMP WITH TIME ZONE, 
 	PRIMARY KEY (id), 
-	CHECK (sender_type IN ('citizen','officer','internal')), 
-	FOREIGN KEY(report_id) REFERENCES reports (id)
+	CHECK (sender IN ('student','officer')), 
+	FOREIGN KEY(case_id) REFERENCES cases (id) ON DELETE CASCADE
 )
 
 ;
 
-CREATE INDEX ix_messages_report_id ON messages (report_id);
+CREATE INDEX ix_messages_case_id ON messages (case_id);
 
 
-CREATE TABLE sessions (
-	id_hash VARCHAR(64) NOT NULL, 
-	user_id VARCHAR(36), 
-	report_id VARCHAR(36), 
-	csrf_hash VARCHAR(64) NOT NULL, 
-	expires_at TIMESTAMP WITH TIME ZONE NOT NULL, 
-	PRIMARY KEY (id_hash), 
-	CHECK ((user_id IS NULL) != (report_id IS NULL)), 
-	FOREIGN KEY(user_id) REFERENCES users (id), 
-	FOREIGN KEY(report_id) REFERENCES reports (id)
-)
-
-;
-
-CREATE INDEX ix_sessions_expires_at ON sessions (expires_at);
-
-
-CREATE TABLE status_history (
+CREATE TABLE notes (
 	id VARCHAR(36) NOT NULL, 
-	report_id VARCHAR(36) NOT NULL, 
-	old_status VARCHAR(60), 
-	new_status VARCHAR(60) NOT NULL, 
-	changed_by VARCHAR(36), 
+	case_id VARCHAR(36) NOT NULL, 
+	officer_id VARCHAR(36), 
+	body TEXT NOT NULL, 
 	created_at TIMESTAMP WITH TIME ZONE NOT NULL, 
 	PRIMARY KEY (id), 
-	FOREIGN KEY(report_id) REFERENCES reports (id), 
-	FOREIGN KEY(changed_by) REFERENCES users (id)
+	FOREIGN KEY(case_id) REFERENCES cases (id) ON DELETE CASCADE, 
+	FOREIGN KEY(officer_id) REFERENCES officers (id) ON DELETE SET NULL
 )
 
 ;
 
-CREATE INDEX ix_status_history_report_id ON status_history (report_id);
-
-
-CREATE TABLE submission_chunks (
-	upload_id VARCHAR(36) NOT NULL, 
-	position INTEGER NOT NULL, 
-	encrypted_content BYTEA NOT NULL, 
-	PRIMARY KEY (upload_id, position), 
-	CHECK (position >= 0 AND position < 104), 
-	FOREIGN KEY(upload_id) REFERENCES submission_uploads (id) ON DELETE CASCADE
-)
-
-;
+CREATE INDEX ix_notes_case_id ON notes (case_id);
