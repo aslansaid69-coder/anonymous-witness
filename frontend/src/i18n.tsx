@@ -155,6 +155,10 @@ const words: Record<string, [string, string]> = {
   "Sign out": ["Выйти", "Шығу"],
   "Officer workspace": ["Кабинет офицера", "Офицер кабинеті"],
   "Owner workspace": ["Кабинет владельца", "Иесі кабинеті"],
+  "Sign in with your private owner account.": [
+    "Войдите в свой личный аккаунт владельца.",
+    "Иесінің жеке аккаунтына кіріңіз.",
+  ],
   "Only owner-created officer accounts can sign in.": [
     "Войти могут только сотрудники, добавленные владельцем.",
     "Тек иесі қосқан қызметкерлер кіре алады.",

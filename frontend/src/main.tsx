@@ -824,7 +824,13 @@ function StaffLogin({ kind }: { kind: string }) {
         {t(kind === "owner" ? "Owner workspace" : "Officer workspace")}
       </span>
       <h1>{t("Sign in")}</h1>
-      <p>{t("Only owner-created officer accounts can sign in.")}</p>
+      <p>
+        {t(
+          kind === "owner"
+            ? "Sign in with your private owner account."
+            : "Only owner-created officer accounts can sign in.",
+        )}
+      </p>
       <form
         className="panel form-stack"
         onSubmit={async (e) => {

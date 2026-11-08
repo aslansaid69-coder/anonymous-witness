@@ -10,5 +10,6 @@
 **/*.db
 ДОСТУПЫ.txt
 CLOUD-ДОСТУПЫ.txt
+SCHOOL-OWNER-ДОСТУПЫ.txt
 *.command
 backend/tests
