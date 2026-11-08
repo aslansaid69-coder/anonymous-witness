@@ -1,0 +1,23 @@
+.env
+.venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+*.db
+node_modules/
+dist/
+*.tsbuildinfo
+/data/
+
+ДОСТУПЫ.txt
+
+# Hosting credentials and local provisioning state
+.env.*
+!.env.example
+.cloud/
+.vercel/
+.neon
+CLOUD-ДОСТУПЫ.txt
+*.log
+
+.DS_Store

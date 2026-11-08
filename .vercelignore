@@ -1,0 +1,14 @@
+.git
+.env*
+!.env.example
+.cloud/
+.neon
+.vercel
+**/node_modules
+**/__pycache__
+**/.pytest_cache
+**/*.db
+ДОСТУПЫ.txt
+CLOUD-ДОСТУПЫ.txt
+*.command
+backend/tests

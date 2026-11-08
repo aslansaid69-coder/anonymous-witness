@@ -1,0 +1,37 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: witness
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run python3 setup.py first}
+      POSTGRES_DB: witness
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U witness -d witness"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+  api:
+    build: ./backend
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://witness:${POSTGRES_PASSWORD}@db:5432/witness
+      STORAGE_DIR: /data/evidence
+    volumes:
+      - evidence_data:/data
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+  web:
+    build: ./frontend
+    ports:
+      - "127.0.0.1:8080:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+volumes:
+  postgres_data:
+  evidence_data:
