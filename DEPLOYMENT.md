@@ -3,6 +3,15 @@
 This repository contains the React/TypeScript frontend, Python/FastAPI API,
 PostgreSQL models, migrations, Docker setup, tests, and university presentation materials.
 
+## Verified deployment
+
+- Public URL: https://anonymous-witness.vercel.app
+- Vercel project: `atik24/anonymous-witness` (`prj_nRXVMDIEJyOQZRTOIrOCkincKAqU`).
+- Neon project: `old-mouse-98041206`, resource `anonymous-witness-db`, Free plan, Frankfurt.
+- Both migrations were applied to the new Neon database. All original records and encrypted file data were imported, with new cloud passwords for `demo.*` accounts.
+- The production site was published through the authenticated Vercel CLI. GitHub source is pushed to `main`; GitHub Actions checks pass. Automatic Vercel deployment on Git push is not connected: Vercel requires a GitHub Login Connection before `vercel git connect` succeeds. Until that connection is authorized, publish updates explicitly with `vercel deploy --prod --scope atik24` from the linked project directory.
+- Secrets live in Vercel environment variables. Local `.cloud/` files and `CLOUD-ДОСТУПЫ.txt` are ignored by Git and excluded from deployment source.
+
 ## Hosting layout
 
 - Vercel builds `frontend/package.json` with `vercel-build` and serves static assets.

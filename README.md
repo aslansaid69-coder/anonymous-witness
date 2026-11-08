@@ -6,7 +6,7 @@ An independent university demonstration for Kazakhstan. React + TypeScript + Tai
 
 ## Vercel and Neon hosting
 
-Cloud deployment configuration is now included. See [DEPLOYMENT.md](DEPLOYMENT.md) for required secrets, migrations, encrypted data transfer, and verification. The cloud API stores evidence encrypted in PostgreSQL and transfers large files in bounded chunks. Hosting is not active until accounts are authorized and a deployment has been verified.
+The application is live at **https://anonymous-witness.vercel.app** with its PostgreSQL database hosted on Neon. The existing 8 reports, messages, status history, audit log and encrypted evidence were transferred and verified. A fictional cloud verification report was added during end-to-end testing. The cloud API stores evidence encrypted in PostgreSQL and transfers large files in bounded chunks. See [DEPLOYMENT.md](DEPLOYMENT.md) for deployment details. Cloud credentials are in the local ignored `CLOUD-ДОСТУПЫ.txt`, not in this repository.
 
 ## Prepared demonstration on this Mac
 
@@ -118,7 +118,7 @@ For frontend development with Node.js 22, keep the Compose services running, the
 
 ## Deployment boundary
 
-This deliverable is a **local demonstration**, not a production law enforcement service. Local HTTP requires `SECURE_COOKIES=false`; secure cookies default to true in application code. For any real deployment, terminate HTTPS at a trusted reverse proxy, set `ALLOWED_ORIGIN` to its exact HTTPS origin and `SECURE_COOKIES=true`, restrict service networking, use managed secrets, review retention and access policies, and perform an independent security assessment. There is no public hosted deployment in this delivery.
+This deliverable is a **local demonstration**, not a production law enforcement service. Local HTTP requires `SECURE_COOKIES=false`; secure cookies default to true in application code. For any real deployment, terminate HTTPS at a trusted reverse proxy, set `ALLOWED_ORIGIN` to its exact HTTPS origin and `SECURE_COOKIES=true`, restrict service networking, use managed secrets, review retention and access policies, and perform an independent security assessment. The published university demonstration uses Vercel HTTPS and Neon; it remains a demonstration, not an operational law enforcement service.
 
 Reports, messages, locations, original filenames, and evidence bytes are encrypted at rest. Category, status, dates/times, sizes, MIME types, hashes and audit metadata remain readable for database operations. Infrastructure still sees network metadata. This does not promise network-level anonymity or protection against a compromised server or stolen encryption key. Evidence metadata is not automatically stripped. The upload allowlist and signature checks do not replace malware scanning; only simulated files belong in this prototype. The app deliberately does not embed PDFs or execute attachments in the page.
 

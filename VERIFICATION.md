@@ -43,3 +43,14 @@ The prepared local environment explicitly accepts localhost and 127.0.0.1 on por
 - Vercel routing/runtime configuration, Neon connection normalization, cloud import/export utilities and GitHub Actions are prepared.
 - `.env`, local credentials, private transfer data, caches and dependencies are excluded from Git.
 - GitHub push and actual Neon/Vercel provisioning require account authorization. Until those succeed, no public cloud URL is verified.
+
+## Production release — 8 November 2026
+
+- GitHub source published to `aslansaid69-coder/anonymous-witness`; GitHub Actions checks passed.
+- Vercel production READY: https://anonymous-witness.vercel.app, deployment `dpl_7R2AEDUNHCdfiX8GLC1PUVLCNTGJ`, functional commit `d6ec6b6`.
+- Neon Free project `old-mouse-98041206` provisioned through the Vercel Marketplace in Frankfurt. Schema 002 applied over the direct connection. Pooled database access is configured for the application.
+- Imported 8 existing reports, 1 evidence file, 5 messages, 15 history records, 2 accounts and 36 audit events. AES-GCM decryption, SHA-256 integrity and rotated account passwords verified against Neon. Sessions/rate limits were not imported.
+- Live HTTPS API verified: health, unauthorized denial, officer/admin roles, original citizen token, new citizen submission, officer question, citizen response, internal-note privacy, status transitions, audit access, and secure no-store responses.
+- A valid demonstration JPEG with padding was uploaded as a 5+ MiB evidence file via 512 KiB requests, then downloaded in chunks and checked against its stored SHA-256. One clearly labeled fictional verification report was retained.
+- Public homepage, direct SPA routes, JavaScript and CSS return HTTP 200. Browser login showed the officer dashboard with 9 reports.
+- GitHub automatic deployment integration is not enabled; see DEPLOYMENT.md. The production deployment itself is live and verified.
